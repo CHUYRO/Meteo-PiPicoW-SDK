@@ -1,0 +1,27 @@
+[submodule "ArduinoCore-API"]
+	path = ArduinoCore-API
+	url = https://github.com/earlephilhower/ArduinoCore-API.git
+[submodule "pico-sdk"]
+	path = pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
+[submodule "system/pyserial"]
+	path = tools/pyserial
+	url = https://github.com/pyserial/pyserial.git
+[submodule "libraries/LittleFS/lib/littlefs"]
+	path = libraries/LittleFS/lib/littlefs
+	url = https://github.com/littlefs-project/littlefs.git
+[submodule "libraries/SdFat"]
+	path = libraries/SdFat
+	url = https://github.com/earlephilhower/ESP8266SdFat.git
+[submodule "pico-extras"]
+	path = pico-extras
+	url = https://github.com/raspberrypi/pico-extras.git
+[submodule "libraries/Keyboard"]
+	path = libraries/Keyboard
+	url = https://github.com/earlephilhower/Keyboard
+[submodule "libraries/Mouse"]
+	path = libraries/Mouse
+	url = https://github.com/earlephilhower/Mouse
+[submodule "libraries/Adafruit_TinyUSB_Arduino"]
+	path = libraries/Adafruit_TinyUSB_Arduino
+	url = https://github.com/adafruit/Adafruit_TinyUSB_Arduino.git
