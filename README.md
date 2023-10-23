@@ -18,11 +18,11 @@ This low power consumption can only be achieved by deep sleeping PicoW after sen
 
 Each cycle is composed by this actions:
 
-#1.-It wakes up and connects/reconnects to saved WiFi, after WiFi link is up it takes measurements and sends it to DB(6-9 seconds of activity).
+# 1.-It wakes up and connects/reconnects to saved WiFi, after WiFi link is up it takes measurements and sends it to DB(6-9 seconds of activity).
 
-#2.-Then it turns off WiFi chip after data is sent to DB and deep sleeps keeping only RTC online to wake up when we want(180 seconds of deep sleep).
+# 2.-Then it turns off WiFi chip after data is sent to DB and deep sleeps keeping only RTC online to wake up when we want(180 seconds of deep sleep).
 
-#3.-Back to 1.
+# 3.-Back to 1.
 
 All welded by hand.
 
