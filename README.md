@@ -59,17 +59,5 @@ TO DO:
 -Add solar panel(5-6v 1-2W) for night charging/discharging cycle. Trickle charging?. 
 
 Images:
+WIP
 
-Theoretical discharge graph for 3xAA NiMh
-
-![Captura](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/b429642c-bb45-44c7-b327-54acf68ac760)
-Thanks to Nikki Smith for this calculator.(https://climbers.net/sbc/iot-battery-runtime-calculator/)
-
-The Thing:
-
-![Pi 4](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/f66621e6-d750-4e6e-84b1-b443fba1624c)
-![Pi 3](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/30ce0ac5-c37d-4a64-b2df-85b01f8468f2)
-![Pi2](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/3c59c3da-a5ac-4d65-95e9-585052bb4210)
-![Pi](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/f0f6f8ed-22c3-4fc1-9740-94d84778d766)
-![WhatsApp Image 2023-07-15 at 13 00 20](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/8c3c8f76-9753-4f87-a57f-8ca758995a89)
-![WhatsApp Image 2023-07-15 at 13 00 21](https://github.com/CHUYRO/Meteo_SDK/assets/85137265/1f1d1fed-d29e-4889-bd8a-596772bf9d76)
