@@ -29,9 +29,9 @@ static uint get_pio_sm_clocks(uint us) {
     return roundf(us * clocks_per_microsecond);
 }
 
-/* static bool pio_sm_is_enabled(PIO pio, uint sm) {
+static bool pio_sm_is_enabled(PIO pio, uint sm) {
     return (pio->ctrl & (1 << sm)) != 0;
-} */
+} 
 
 static void dht_program_init(PIO pio, uint sm, uint offset, dht_model_t model, uint data_pin) {
     pio_sm_config c = dht_program_get_default_config(offset);
