@@ -22,7 +22,7 @@
 #include "bmp/BMP280.hpp"
 #include "tusb.h"
 
-#define TESTING 0
+#define TESTING 1
 
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC=0, MesRTC=0, DiaWRTC=0, AñoRTC=0;
@@ -549,7 +549,7 @@ void bmp280loop() {
     printf("Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));
     printf("Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));
     printf("Pressure: %f[hPa]\n", bmp280.readPressure(1));
-    temperature = bmp280.readTemperature()-1.2; // average offset caused by chip heating
+    temperature = bmp280.readTemperature()-1.2; //+1.2ºC average offset caused by chip self-heating
     pressure = bmp280.readPressure(1);
     bmpdone=true;
   }
@@ -1319,11 +1319,6 @@ static void serialInfo(bool old_voltage){
   }
 }
 
-//-MEDICIONES ELECT.-------------------------------
-void MedicionesElect(){ 
-  LoopINA219();    
-}
-
 //-Mediciones Generales-------------------------
 void MedGen() {
   dht22();
@@ -1336,7 +1331,7 @@ void MedGen() {
 }
 
 void mqttTimeout(MQTT_CLIENT_T *stateM){
-  if(StartingSEC+(uint64_t)(220) <= Segundos && mqttproceso == false){
+  if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == false && mqttdone == false){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
@@ -1360,8 +1355,8 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     /* execTime();
     NTPLoop();
     serialInfo(old_voltage);
-    MedicionesElect();
-    MedGen();                           
+    LoopINA219();
+    MedicionesElect();                           
     MQTT(stateM); */
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
@@ -1447,7 +1442,7 @@ int main() {
       execTime();
       NTPLoop();
       serialInfo(old_voltage);
-      MedicionesElect();
+      LoopINA219();
       MedGen();                         
       MQTT(stateM);
       mqttTimeout(stateM);
