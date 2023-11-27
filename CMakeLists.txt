@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
+# initialize the SDK based on PICO_SDK_PATH
+# note: this must happen before project()
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
         include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
 else()
@@ -12,7 +14,7 @@ else()
         message(WARNING "pico_extras_import.cmake not found!")
 endif()
 
-project(pico_w_Meteo C CXX ASM)
+project(pico_w_Meteo C CXX)
 set(PICO_BOARD pico_w)
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 set(CMAKE_C_STANDARD 11)
@@ -35,7 +37,9 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-arduino-compat/libs/adafruit-ina
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dht)
 
 add_executable(pico_w_Meteo 
-        main.cpp    
+        main.cpp 
+        bmp/BMP280.hpp
+        bmp/BMP280.cpp   
         )
 
 target_compile_definitions(pico_w_Meteo PRIVATE
@@ -52,7 +56,7 @@ pico_enable_stdio_uart(pico_w_Meteo 0)
 # create map/bin/hex/uf2 files.         
 pico_add_extra_outputs(pico_w_Meteo)
 
-target_compile_options(pico_w_Meteo PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable -Werror=unused-but-set-variable -Wno-maybe-uninitialized -Wno-error=unused-value -Werror) 
+target_compile_options(pico_w_Meteo PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable -Werror=unused-but-set-variable -Wno-maybe-uninitialized -Wno-error=unused-value) 
 
 target_include_directories(pico_w_Meteo PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
@@ -67,5 +71,6 @@ target_link_libraries(pico_w_Meteo
         hardware_rtc
         hardware_adc 
         hardware_i2c
-        hardware_sleep       
+        hardware_sleep  
+        hardware_spi     
         )
