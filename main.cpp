@@ -21,7 +21,7 @@
 #include "bmp/BMP280.hpp"
 #include "tusb.h"
 
-#define DEBUG true 
+#define DEBUG false 
 #define DEBUGBMP280 false
 #define DEBUGDHT22 false
 
@@ -863,9 +863,9 @@ static void NTPSetup(){
 }
 
 void __no_inline_not_in_flash_func(NTPLoop)(){    
-  if(Minutos > ntpHoras+(uint64_t)(2)){
+  if(Horas > ntpHoras+(uint64_t)(3)){
     ntpupdated=false;
-    ntpHoras=Minutos;        
+    ntpHoras=Horas;        
   } 
   if(ntpupdated == false && ntpproceso == false){ 
     ntpproceso = true;
@@ -973,7 +973,7 @@ static void __no_inline_not_in_flash_func(wifi_Conn)(bool Reconnect){
           cyw43_wifi_get_bssid(&cyw43_state, &bssid[1]);                
           if(Reconnect==true){printf("\nReconectado.\n");}else{printf("\nConectado.\n");}  
           printf("SSID: %s\n", WIFI_SSID);
-          printf("BSSID: %02lu.%lu.%lu.%lu.%lu.%lu\n", bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
+          printf("BSSID: %02lu:%lu:%lu:%lu:%lu:%lu\n", bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
           printf("RSSI: %li\n", rssi);           
 
           //extern cyw43_t cyw43_state;
@@ -1259,7 +1259,7 @@ void Sleep(MQTT_CLIENT_T *stateM){
     #if DEBUG == true
       printf("-Sleeping...\n");
       sleep_ms(180000);
-      printf("-Awaking...");
+      printf("-Awaking...\n");
     #else
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,180); //180sec sleep
