@@ -22,9 +22,10 @@
 #include "tusb.h"
 
 #define DEBUG true 
+#define DEBUGBMP280 true
 
 //-RTC-------------
-unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC=0, MesRTC=0, DiaWRTC=0, AñoRTC=0;
+unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 
 //-TEMPCOMB--------
 float Tcomb = 0;
@@ -40,8 +41,7 @@ float ldrVal = -1, ldrValRaw = 0;
 #define chip_id 0xD0
 uint8_t data = chip_id;
 uint8_t chipID = 0;
-int32_t temperature=0;
-int32_t pressure=0; 
+double temperature=0,pressure=0;
 
 //-DHT22-------------
 static const dht_model_t DHT_MODEL = DHT22;
@@ -52,9 +52,8 @@ dht_t dht;
 
 //-INA219------------------------- 
 Adafruit_INA219 ina219;
-int inaCount=20;
-float total_mA = 0, shuntvoltage = 0,busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, Amp = 0, total_mAM = 0,shuntRaw=0, busvRaw=0,
-currentmARaw=0,power_mWRaw=0;
+int inaCount = 20;
+float total_mA = 0, shuntvoltage = 0,busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, Amp = 0, total_mAM = 0, shuntRaw = 0, busvRaw = 0, currentmARaw = 0,power_mWRaw = 0;
 
 //-READ VSYS----------------
 float old_voltage = 0, voltage = 0, adc = 0, tempC = 0;
@@ -70,7 +69,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 #define SYS_KHZ (60 * 1000) //Downclocked to 60
 
 //-TIME------------------
-uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, Ttotal = 0, elapTime = 0, elapTimeend = 0,ntpHoras = 0, StartingSEC = 0,SegundoRawDHT22=0,SegundosRawBMP=0;
+uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, Ttotal = 0, elapTime = 0, elapTimeend = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0,SegundosRawBMP = 0;
 int8_t Horantp = 0, Minutontp = 0, Segundontp = 0;
 unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0, MinutoComienzo = 0, HoraComienzo = 0, SegundoComienzo = 0, DiaComienzo = 0, MesComienzo = 0;
 bool movida = false, InitTimeGet = false;
@@ -81,7 +80,7 @@ long int rssi = 0;
 uint8_t BSSIDRaw[30]; 
 int iReconexion = 0, dbpercent = 0, netnum = 0;
 cyw43_ev_scan_result_t network[30];
-int Duplic[30],lastStatus=33;
+int Duplic[30], lastStatus = 33;
 
 //-NTP------------------
 typedef struct NTP_T_ {
@@ -108,7 +107,7 @@ NTP_T *state = (NTP_T *)calloc(1, sizeof(NTP_T));
 
 //-SLEEP------------------------------
 uint scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
-bool mqttdone=false,dhtdone=false,ldrdone=false,bmpdone=false,Tempcombdone=false,inadone=false,serialdone=false,ntpupdated=false,mqttproceso=false,ntpproceso=false;
+bool mqttdone=false,dhtdone=false,ldrdone=false,bmpdone=false,inadone=false,serialdone=false,ntpupdated=false,mqttproceso=false,ntpproceso=false;
 
 //MQTT---------------
 int ChannelID = 1713237;
@@ -141,20 +140,20 @@ void execTime(){
   DiasTot = Dias;
 
   if(MillisTot%1000 == 0 && MillisTot != MillisRaw){
-    MillisTot = 0;
-    MillisRaw = MillisTot;        
+  MillisTot = 0;
+  MillisRaw = MillisTot;        
   } 
   if(SegundosTot%60 == 0 && SegundosTot != SegundosRaw){
-    SegundosTot = 0;
-    SegundosRaw = SegundosTot;        
+  SegundosTot = 0;
+  SegundosRaw = SegundosTot;        
   }           
   if(MinutosTot%60 == 0 && MinutosTot != MinutosRaw){
-    MinutosTot = 0;
-    MinutosRaw = MinutosTot;
+  MinutosTot = 0;
+  MinutosRaw = MinutosTot;
   }
   if(HorasTot%24 == 0 && HorasTot != HorasRaw){ 
-    HorasTot = 0;
-    HorasRaw = HorasTot;
+  HorasTot = 0;
+  HorasRaw = HorasTot;
   } 
 }
 
@@ -175,24 +174,24 @@ static bool valid_datetimeLOL(datetime_t *t) {
 bool rtc_set_datetimeLOL(datetime_t *t) {
 
   if (!valid_datetimeLOL(t)) {
-    return false;
+  return false;
   }
 
   // Disable RTC
   rtc_hw->ctrl = 0;
   // Wait while it is still active
   while (rtc_running()) {
-    tight_loop_contents();
+  tight_loop_contents();
   } 
 
   // Write to setup registers
   rtc_hw->setup_0 = (((uint32_t)t->year)  << RTC_SETUP_0_YEAR_LSB ) |
-            (((uint32_t)t->month) << RTC_SETUP_0_MONTH_LSB) |
-            (((uint32_t)t->day)   << RTC_SETUP_0_DAY_LSB);
+      (((uint32_t)t->month) << RTC_SETUP_0_MONTH_LSB) |
+      (((uint32_t)t->day)   << RTC_SETUP_0_DAY_LSB);
   rtc_hw->setup_1 = (((uint32_t)t->dotw)  << RTC_SETUP_1_DOTW_LSB) |
-            (((uint32_t)t->hour)  << RTC_SETUP_1_HOUR_LSB) |
-            (((uint32_t)t->min)   << RTC_SETUP_1_MIN_LSB)  |
-            (((uint32_t)t->sec)   << RTC_SETUP_1_SEC_LSB);
+      (((uint32_t)t->hour)  << RTC_SETUP_1_HOUR_LSB) |
+      (((uint32_t)t->min)   << RTC_SETUP_1_MIN_LSB)  |
+      (((uint32_t)t->sec)   << RTC_SETUP_1_SEC_LSB);
 
   // Load setup values into rtc clock domain
   rtc_hw->ctrl = RTC_CTRL_LOAD_BITS;
@@ -200,7 +199,7 @@ bool rtc_set_datetimeLOL(datetime_t *t) {
   // Enable RTC and wait for it to be running
   rtc_hw->ctrl = RTC_CTRL_RTC_ENABLE_BITS;
   while (!rtc_running()) {
-    tight_loop_contents();
+  tight_loop_contents();
   }
 
   busy_wait_us(64);
@@ -213,26 +212,26 @@ bool rtc_set_datetimeLOL(datetime_t *t) {
 
 void setTimeRTC(){       
   if(InitTimeGet==true){
-    datetimeNTP = {
-      .year = (int16_t) (año),
-      .month = (int8_t) (mes),
-      .day = (int8_t) (dianum),
-      .dotw = (int8_t) (diaint),
-      .hour = (int8_t) (hora),
-      .min = (int8_t) (minutos),
-      .sec = (int8_t) (segundos)
-    };        
-    if(rtc_set_datetimeLOL(&datetimeNTP)==true){          
-      //printf("\n-RTC(set):%02i:%02i:%02i T:%02lli:%02lli:%03lli\n",datetimeNTP.hour,datetimeNTP.min,datetimeNTP.sec,MinutosTot,SegundosTot,MillisTot);
-      ntpupdated=true; 
-      ntpproceso=false;
-      Horantp=datetimeNTP.hour;
-      Minutontp=datetimeNTP.min;
-      Segundontp=datetimeNTP.sec;                             
-    }
-    else{
-      printf("Horas BAD!\n");
-    }                           
+  datetimeNTP = {
+    .year = (int16_t) (año),
+    .month = (int8_t) (mes),
+    .day = (int8_t) (dianum),
+    .dotw = (int8_t) (diaint),
+    .hour = (int8_t) (hora),
+    .min = (int8_t) (minutos),
+    .sec = (int8_t) (segundos)
+  };        
+  if(rtc_set_datetimeLOL(&datetimeNTP)==true){          
+    //printf("\n-RTC(set):%02i:%02i:%02i T:%02lli:%02lli:%03lli\n",datetimeNTP.hour,datetimeNTP.min,datetimeNTP.sec,MinutosTot,SegundosTot,MillisTot);
+    ntpupdated=true; 
+    ntpproceso=false;
+    Horantp=datetimeNTP.hour;
+    Minutontp=datetimeNTP.min;
+    Segundontp=datetimeNTP.sec;                             
+  }
+  else{
+    printf("Horas BAD!\n");
+  }                           
   }         
 }
 
@@ -251,8 +250,8 @@ void RTC(){
 static MQTT_CLIENT_T* mqtt_client_init(void) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T *)calloc(1, sizeof(MQTT_CLIENT_T));    
   if (!stateM) {
-    printf("-failed to allocate state\n");
-    return NULL;
+  printf("-failed to allocate state\n");
+  return NULL;
   }
   stateM->received = 0;
   return stateM;
@@ -272,19 +271,19 @@ void run_dns_lookup(MQTT_CLIENT_T *stateM) {
   cyw43_arch_lwip_end();
 
   if (err == ERR_ARG) {
-    printf("-Failed to start mqtt DNS query\n");
-    return;
+  printf("-Failed to start mqtt DNS query\n");
+  return;
   }
 
   if (err == ERR_OK) {
-    printf("-no dns mqtt lookup needed");
-    return;        
+  printf("-no dns mqtt lookup needed");
+  return;        
   }
 
   while (stateM->remote_addr.addr == 0 && Timeout <= 15000) {
-    cyw43_arch_poll();
-    Timeout++;  
-    busy_wait_ms(1);        
+  cyw43_arch_poll();
+  Timeout++;  
+  busy_wait_ms(1);        
   }
   Timeout = 0;
 }
@@ -300,10 +299,10 @@ void mqtt_pub_request_cb(void *arg, err_t err) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T *)arg;
   printf("-mqtt_pub_request_cb: err %d\n", err);
   if(err==ERR_OK){
-    stateM->counter++;  
-    printf("-MQTT Ok:%ld Error:%ld\n", stateM->counter,ErrorMQTT); 
-    mqttdone=true;
-    StartingSEC=Segundos;
+  stateM->counter++;  
+  printf("-MQTT Ok:%ld Error:%ld\n", stateM->counter,ErrorMQTT); 
+  mqttdone=true;
+  StartingSEC=Segundos;
   }      
   stateM->received++;
   mqttproceso = false;
@@ -314,7 +313,7 @@ err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
   err_t err;
   u8_t qos = 0; // 0, 1 or 2, ThingSpeak is 0.
   u8_t retain = 0;    
-  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure/100.f,ldrVal,Tcomb,loadvoltage,voltage,Amp);
+  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,Amp);
   String topicString = "channels/"+String(ChannelID)+"/publish"; 
   mqttproceso = true;
   cyw43_arch_lwip_begin();
@@ -352,19 +351,19 @@ err_t mqtt_test_connect(MQTT_CLIENT_T *stateM) {
 
 void MQTT(MQTT_CLIENT_T* stateM){
   if(mqttdone == false && mqttproceso == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){ 
-    if(mqtt_client_is_connected(stateM->mqtt_client)) {                
-      cyw43_arch_lwip_begin(); 
-      if(mqtt_test_publish(stateM) == ERR_OK){}else{printf("-Full ringbuffer or Publish error.\n");} 
-      cyw43_arch_lwip_end();                
-    }else{
-      int errReconnect = mqtt_test_connect(stateM);     
-      if(errReconnect != ERR_OK && errReconnect != ERR_ISCONN){               
-        printf("-Connection BAD!\n");
-        ErrorMQTT++;
-      }else if(errReconnect == ERR_ISCONN){  
-        printf("-Connection already ON!\n");         
-      }                  
-    }         
+  if(mqtt_client_is_connected(stateM->mqtt_client)) {                
+    cyw43_arch_lwip_begin(); 
+    if(mqtt_test_publish(stateM) == ERR_OK){}else{printf("-Full ringbuffer or Publish error.\n");} 
+    cyw43_arch_lwip_end();                
+  }else{
+    int errReconnect = mqtt_test_connect(stateM);     
+    if(errReconnect != ERR_OK && errReconnect != ERR_ISCONN){               
+    printf("-Connection BAD!\n");
+    ErrorMQTT++;
+    }else if(errReconnect == ERR_ISCONN){  
+    printf("-Connection already ON!\n");         
+    }                  
+  }         
   }
 }
 
@@ -385,74 +384,74 @@ static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {
   uint añoTO = datetimeNTP.year;
 
   while(secondTO>=60 || minuteTO>=60){
-    if(secondTO>=60){
-      secondTO-=60;
-      minuteTO++;
+  if(secondTO>=60){
+    secondTO-=60;
+    minuteTO++;
+  }
+  if(minuteTO>=60){
+    minuteTO-=60;
+    horaTO++;
+    if(horaTO==24){
+    horaTO=0;
+    diaTO++;
+    diaWTO++;
+    if(diaWTO>6){
+      diaWTO=0;
     }
-    if(minuteTO>=60){
-      minuteTO-=60;
-      horaTO++;
-      if(horaTO==24){
-        horaTO=0;
-        diaTO++;
-        diaWTO++;
-        if(diaWTO>6){
-          diaWTO=0;
-        }
-        if(añoTO%4==0){//Bisiesto Feb 29dias
-          if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
-            if(diaTO>31){
-              diaTO=1;
-              mesTO++;
-              //if(mes>12)añoTO++ do algo...
-            }
-          }
-          else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
-            if(diaTO>30){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-          else if(mesTO==2){
-            if(diaTO>29){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-        }
-        else{//NO bisiesto Feb 28dias
-          if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
-            if(diaTO>31){
-              diaTO=1;
-              mesTO++;
-              //if(mesTO>12)
-            }
-          }
-          else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
-            if(diaTO>30){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-          else if(mesTO==2){
-            if(diaTO>28){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-        }
+    if(añoTO%4==0){//Bisiesto Feb 29dias
+      if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
+      if(diaTO>31){
+        diaTO=1;
+        mesTO++;
+        //if(mes>12)añoTO++ do algo...
+      }
+      }
+      else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
+      if(diaTO>30){
+        diaTO=1;
+        mesTO++;
+      }
+      }
+      else if(mesTO==2){
+      if(diaTO>29){
+        diaTO=1;
+        mesTO++;
+      }
       }
     }
+    else{//NO bisiesto Feb 28dias
+      if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
+      if(diaTO>31){
+        diaTO=1;
+        mesTO++;
+        //if(mesTO>12)
+      }
+      }
+      else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
+      if(diaTO>30){
+        diaTO=1;
+        mesTO++;
+      }
+      }
+      else if(mesTO==2){
+      if(diaTO>28){
+        diaTO=1;
+        mesTO++;
+      }
+      }
+    }
+    }
+  }
   }    
 
   datetime_t t_alarm = {
-      .year  = (int16_t)(añoTO),
-      .month = (int8_t)(mesTO),
-      .day   = (int8_t)(diaTO),
-      .dotw  = (int8_t)(diaWTO), // 0 is Sunday, so 5 is Friday
-      .hour  = (int8_t)(horaTO),
-      .min   = (int8_t)(minuteTO),
-      .sec   = (int8_t)(secondTO)
+    .year  = (int16_t)(añoTO),
+    .month = (int8_t)(mesTO),
+    .day   = (int8_t)(diaTO),
+    .dotw  = (int8_t)(diaWTO), // 0 is Sunday, so 5 is Friday
+    .hour  = (int8_t)(horaTO),
+    .min   = (int8_t)(minuteTO),
+    .sec   = (int8_t)(secondTO)
   };    
   sleep_goto_sleep_until(&t_alarm, &sleep_callback);
 }
@@ -505,41 +504,40 @@ void measure_freqs() {
 //-LDR---------------------------------------
 void LDRLoop() {
   if(ldrdone==false){
-    adc_init();        
-    adc_gpio_init(27);        
-    adc_select_input(1);
-    //float LUX = adc_read()*(3.3/1023);
-    ldrValRaw = 0;
-    for (int i = 0; i < 10; i++){
-      ldrValRaw += 140 - adc_read();   
-      busy_wait_ms(10);         
-    }
-    ldrVal = ldrValRaw / 10;
-    if (ldrVal < 5) {
-      ldrVal = 0.01;
-    }
-    ldrdone=true;
-    //printf("\n-LDR: %f\n",ldrVal);
+  adc_init();        
+  adc_gpio_init(27);        
+  adc_select_input(1);
+  //float LUX = adc_read()*(3.3/1023);
+  ldrValRaw = 0;
+  for (int i = 0; i < 10; i++){
+    ldrValRaw += 140 - adc_read();         
+  }
+  ldrVal = ldrValRaw / 10;
+  if (ldrVal < 5) {
+    ldrVal = 0.01;
+  }
+  ldrdone=true;
+  //printf("\n-LDR: %f\n",ldrVal);
   }
 }
 
 //-DHT22------------------------------------
 void dht22() {
   if(dhtdone==false && SegundoRawDHT22+(uint64_t)2 < Segundos){
-    SegundoRawDHT22=Segundos;
-    dht_init(&dht, DHT_MODEL, pio0, DATA_PIN, true);
-    dht_start_measurement(&dht);
-    dht_result_t result = dht_finish_measurement_blocking(&dht, &humidity, &temperature_c);
-    if (result == DHT_RESULT_OK) {            
-      //printf("\n%.1f C , %.1f hum\n", temperature_c, humidity);
-      dhtdone=true;
-    } else if (result == DHT_RESULT_TIMEOUT) {
-      printf("-DHT sensor not responding. Please check your wiring.\n");
-    } else {
-      assert(result == DHT_RESULT_BAD_CHECKSUM);
-      printf("Bad checksum");
-    } 
-    dht_deinit(&dht);       
+  SegundoRawDHT22=Segundos;
+  dht_init(&dht, DHT_MODEL, pio0, DATA_PIN, true);
+  dht_start_measurement(&dht);
+  dht_result_t result = dht_finish_measurement_blocking(&dht, &humidity, &temperature_c);
+  if (result == DHT_RESULT_OK) {            
+    //printf("\n%.1f C , %.1f hum\n", temperature_c, humidity);
+    dhtdone=true;
+  } else if (result == DHT_RESULT_TIMEOUT) {
+    printf("-DHT sensor not responding. Please check your wiring.\n");
+  } else {
+    assert(result == DHT_RESULT_BAD_CHECKSUM);
+    printf("Bad checksum");
+  } 
+  dht_deinit(&dht);       
   }
 }
 
@@ -547,10 +545,10 @@ void dht22() {
 void ina219Setup(){
   // Try to initialize the INA219
   if (!ina219.begin()) {
-    Serial.println("\n-Failed to find INA219 chip.");
+  Serial.println("\n-Failed to find INA219 chip.");
   }
   else{
-    Serial.println("\n-INA219 SETUP");    
+  Serial.println("\n-INA219 SETUP");    
   }
   //Default Calib.
   //ina219.setCalibration_32V_2A();
@@ -562,38 +560,38 @@ void ina219Setup(){
 
 void LoopINA219() {
   if(inadone==false){
-    ina219.powerSave(false);
-    for(int i = 0; i < inaCount; i++){
-      shuntRaw += ina219.getShuntVoltage_mV();
-      busvRaw += ina219.getBusVoltage_V();
-      currentmARaw += ina219.getCurrent_mA();
-      power_mWRaw += ina219.getPower_mW();            
-    }
-    ina219.powerSave(true);
-    shuntvoltage=shuntRaw/inaCount;
-    busvoltage=busvRaw/inaCount;
-    current_mA=currentmARaw/inaCount;
-    power_mW=power_mWRaw/inaCount;
-    shuntRaw=0,busvRaw=0,currentmARaw=0,power_mWRaw=0;
-    Amp = current_mA;
-    if (Amp < 0){
-      Amp = 0;
-    }
-    current_A = Amp / 1000;        
-    if (power_mW < 0){
-      power_mW = 0;
-    }
-    power_W = power_mW / 1000;
-    loadvoltage = busvoltage + (shuntvoltage / 1000);
-    total_mA += Amp;
-    total_mAH = total_mA/188; 
+  ina219.powerSave(false);
+  for(int i = 0; i < inaCount; i++){
+    shuntRaw += ina219.getShuntVoltage_mV();
+    busvRaw += ina219.getBusVoltage_V();
+    currentmARaw += ina219.getCurrent_mA();
+    power_mWRaw += ina219.getPower_mW();            
+  }
+  ina219.powerSave(true);
+  shuntvoltage=shuntRaw/inaCount;
+  busvoltage=busvRaw/inaCount;
+  current_mA=currentmARaw/inaCount;
+  power_mW=power_mWRaw/inaCount;
+  shuntRaw=0,busvRaw=0,currentmARaw=0,power_mWRaw=0;
+  Amp = current_mA;
+  if (Amp < 0){
+    Amp = 0;
+  }
+  current_A = Amp / 1000;        
+  if (power_mW < 0){
+    power_mW = 0;
+  }
+  power_W = power_mW / 1000;
+  loadvoltage = busvoltage + (shuntvoltage / 1000);
+  total_mA += Amp;
+  total_mAH = total_mA/188; 
 /*         if(Horas > 0){
-      total_mAM = total_mAH / Horas;
-    }
-    else{
-      total_mAM = total_mAH;
-    } */
-    inadone=true;
+    total_mAM = total_mAH / Horas;
+  }
+  else{
+    total_mAM = total_mAH;
+  } */
+  inadone=true;
   }
 }
 
@@ -607,7 +605,7 @@ int power_voltage(float *voltage_result) {
   // read vsys
   uint32_t vsys = 0;
   for(int i = 0; i < PICO_POWER_SAMPLE_COUNT; i++) {
-    vsys += adc_read();
+  vsys += adc_read();
   }
   vsys /= PICO_POWER_SAMPLE_COUNT;
   cyw43_thread_exit();
@@ -617,6 +615,53 @@ int power_voltage(float *voltage_result) {
   return PICO_OK;
 }
 
+//-BMP280------------------------------------
+void bmp280setup(BMP280::BMP280 &bmp280) {
+  spi_write_blocking(spi0, &data, 1);
+  spi_read_blocking(spi0, 0, &chipID, 1);
+  sleep_ms(10);
+  if(!bmp280.setPowerMode(BMP280::PowerMode::Forced, true)){printf("\n-Error PowerMode\n");}else{printf("\n-Power mode: %i\n", bmp280.readPowerMode());}
+  sleep_ms(10);
+  //(Temperature oversampling x1, pressure oversampling x1 0x27->0b00100111)
+  if(!bmp280.setRegister(0xF4, 0b00100111, true)){printf("\n-Error Register\n");} 
+  sleep_ms(10);
+  if(!bmp280.setOversampling(BMP280::Temperature, (uint8_t)1, true)){printf("\n-Error OVS TEMP\n");}{printf("-Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));}
+  sleep_ms(10);
+  if(!bmp280.setOversampling(BMP280::Pressure, (uint8_t)1, true)){printf("\n-Error OVS PRESS\n");}else{printf("-Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));}
+  sleep_ms(10);
+} 
+void bmp280loop(BMP280::BMP280 &bmp280) {
+  if(bmpdone==false && SegundosRawBMP + (uint64_t)1 < Segundos){
+  if(bmp280.readForChipID()!=0){
+    bmpdone=true;
+  }
+  if(!bmp280.setPowerMode(BMP280::PowerMode::Forced, true)){printf("\n-Error PowerMode\n");bmpdone=false;}
+  if(bmp280.readOversampling(BMP280::Type::Temperature) != 1){printf("\n-Error OVS TEMP\n");bmpdone=false;bmp280.setRegister(0xF4, 0b00100111, false);}
+  if(bmp280.readOversampling(BMP280::Type::Pressure) != 1){printf("\n-Error OVS PRESS\n");bmpdone=false;bmp280.setRegister(0xF4, 0b00100111, false);}
+  SegundosRawBMP = Segundos;
+  temperature = bmp280.readTemperature();
+  pressure = bmp280.readPressure(1);
+  #if DEBUGBMP280 == true
+    printf("\n----------BMP280 DEBUG ----------\n");
+    printf("-ChipID: %#x\n", bmp280.readForChipID());
+    printf("-Power mode: %i\n", bmp280.readPowerMode());
+    printf("-Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));
+    printf("-Temperature: %.2f[C]\n", temperature);
+    printf("-Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));
+    printf("-Pressure: %.2f[hPa]\n", pressure);
+    printf("---------- END ----------\n\n");
+  #endif    
+  }
+} 
+
+void MedGen(BMP280::BMP280 &bmp280){
+  LDRLoop();      
+  bmp280loop(bmp280);
+  dht22();
+  Tcomb = (temperature + temperature_c)/2;
+}
+
+
 //-GENERIC----------------------------------
 long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -625,115 +670,115 @@ long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
 //-NTP--------------------------------------
 static void ntp_result(NTP_T* state, int status, time_t *result) {    
   if (status == 0 && result) {
-    struct tm *utc = gmtime(result);        
-    if(segundos != utc->tm_sec || minutos != utc->tm_min){
-      segundos = utc->tm_sec;            
-      minutos = utc->tm_min;
-      dianum = utc->tm_mday;
-      mes = utc->tm_mon + 1;
-      año = 1900 + utc->tm_year;
+  struct tm *utc = gmtime(result);        
+  if(segundos != utc->tm_sec || minutos != utc->tm_min){
+    segundos = utc->tm_sec;            
+    minutos = utc->tm_min;
+    dianum = utc->tm_mday;
+    mes = utc->tm_mon + 1;
+    año = 1900 + utc->tm_year;
 
-      if (debugControlDia < 1) {
-        diaint = utc->tm_wday;
-        debugControlDia = 1;
+    if (debugControlDia < 1) {
+    diaint = utc->tm_wday;
+    debugControlDia = 1;
+    }
+    if (mes == 13) { //???
+    mes = 1;
+    }
+    if (mes >= 11 || mes < 4) {
+    if (utc->tm_hour + 1 == 24) {
+      hora = 0;
+    }
+    else if (utc->tm_hour + 1 == 25) {
+      hora = 1;
+    }
+    else {
+      hora = utc->tm_hour + 1;
+    }
+    }
+    else if (mes >= 4 && mes < 11) {
+    if (utc->tm_hour + 2 == 24) {
+      hora = 0;
+    }
+    else if (utc->tm_hour + 2 == 25) {
+      hora = 1;
+    }
+    else {
+      hora = utc->tm_hour + 2;
+    }
+    }
+    if(hora == 0 || hora == 1){
+    if (movidaDebug == 0) {
+      movida = true;
+      movidaDebug = 1;
+    }    
+    if (movida == true) {
+      diaint += 1;
+      movida = false;
+    } 
+    dianum += 1; //Hay que tener en cuenta el mes para saber si dianum > 28 o 29 mes++.
+    if(año%4==0){//Bisiesto Feb 29dias
+      if(mes==1||mes==3||mes==5||mes==7||mes==8||mes==10||mes==12){
+      if(dianum>31){
+        dianum=1;
+        mes++;
+        //if(mes>12)
       }
-      if (mes == 13) { //???
-        mes = 1;
       }
-      if (mes >= 11 || mes < 4) {
-        if (utc->tm_hour + 1 == 24) {
-          hora = 0;
-        }
-        else if (utc->tm_hour + 1 == 25) {
-          hora = 1;
-        }
-        else {
-          hora = utc->tm_hour + 1;
-        }
+      else if(mes==4||mes==6||mes==9||mes==11){
+      if(dianum>30){
+        dianum=1;
+        mes++;
       }
-      else if (mes >= 4 && mes < 11) {
-        if (utc->tm_hour + 2 == 24) {
-          hora = 0;
-        }
-        else if (utc->tm_hour + 2 == 25) {
-          hora = 1;
-        }
-        else {
-          hora = utc->tm_hour + 2;
-        }
       }
-      if(hora == 0 || hora == 1){
-        if (movidaDebug == 0) {
-          movida = true;
-          movidaDebug = 1;
-        }    
-        if (movida == true) {
-          diaint += 1;
-          movida = false;
-        } 
-        dianum += 1; //Hay que tener en cuenta el mes para saber si dianum > 28 o 29 mes++.
-        if(año%4==0){//Bisiesto Feb 29dias
-          if(mes==1||mes==3||mes==5||mes==7||mes==8||mes==10||mes==12){
-            if(dianum>31){
-              dianum=1;
-              mes++;
-              //if(mes>12)
-            }
-          }
-          else if(mes==4||mes==6||mes==9||mes==11){
-            if(dianum>30){
-              dianum=1;
-              mes++;
-            }
-          }
-          else if(mes==2){
-            if(dianum>29){
-              dianum=1;
-              mes++;
-            }
-          }
-        }
-        else{//NO bisiesto Feb 28dias
-          if(mes==1||mes==3||mes==5||mes==7||mes==8||mes==10||mes==12){
-            if(dianum>31){
-              dianum=1;
-              mes++;
-              //if(mes>12)
-            }
-          }
-          else if(mes==4||mes==6||mes==9||mes==11){
-            if(dianum>30){
-              dianum=1;
-              mes++;
-            }
-          }
-          else if(mes==2){
-            if(dianum>28){
-              dianum=1;
-              mes++;
-            }
-          }
-        }
-        if (diaint > 6) {
-          diaint = 0;
-        }
-      }               
-      //printf("\n-NTP: %02i/%02i/%04i %02i:%02i:%02i\n", dianum, mes, utc->tm_year + 1900, hora, minutos, segundos);                          
-      if(InitTimeGet != true && año != 1900){
-        SegundoComienzo=segundos;
-        MinutoComienzo=minutos;
-        HoraComienzo=hora;
-        DiaComienzo=dianum;
-        MesComienzo=mes;
-        InitTimeGet = true;
-        printf("\n-INIT: %02i/%02i %02i:%02i:%02i\n\n",DiaComienzo,MesComienzo,HoraComienzo,MinutoComienzo,SegundoComienzo);
-      }  
-      setTimeRTC();
-    }                 
+      else if(mes==2){
+      if(dianum>29){
+        dianum=1;
+        mes++;
+      }
+      }
+    }
+    else{//NO bisiesto Feb 28dias
+      if(mes==1||mes==3||mes==5||mes==7||mes==8||mes==10||mes==12){
+      if(dianum>31){
+        dianum=1;
+        mes++;
+        //if(mes>12)
+      }
+      }
+      else if(mes==4||mes==6||mes==9||mes==11){
+      if(dianum>30){
+        dianum=1;
+        mes++;
+      }
+      }
+      else if(mes==2){
+      if(dianum>28){
+        dianum=1;
+        mes++;
+      }
+      }
+    }
+    if (diaint > 6) {
+      diaint = 0;
+    }
+    }               
+    //printf("\n-NTP: %02i/%02i/%04i %02i:%02i:%02i\n", dianum, mes, utc->tm_year + 1900, hora, minutos, segundos);                          
+    if(InitTimeGet != true && año != 1900){
+    SegundoComienzo=segundos;
+    MinutoComienzo=minutos;
+    HoraComienzo=hora;
+    DiaComienzo=dianum;
+    MesComienzo=mes;
+    InitTimeGet = true;
+    printf("\n-INIT: %02i/%02i %02i:%02i:%02i\n\n",DiaComienzo,MesComienzo,HoraComienzo,MinutoComienzo,SegundoComienzo);
+    }  
+    setTimeRTC();
+  }                 
   }
   else{        
-    ntpupdated=false;
-    ntpproceso=false;
+  ntpupdated=false;
+  ntpproceso=false;
   } 
   state->dns_request_sent = false;
 }
@@ -756,12 +801,12 @@ static void ntp_request(){
 static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *arg){
  NTP_T *state = (NTP_T*)arg;
   if (ipaddr) {
-    state->ntp_server_address = *ipaddr;
-    //printf("\n-NTP DNS address: %s\n", ipaddr_ntoa(ipaddr));
-    ntp_request();
+  state->ntp_server_address = *ipaddr;
+  //printf("\n-NTP DNS address: %s\n", ipaddr_ntoa(ipaddr));
+  ntp_request();
   } else {
-    //printf("\n-NTP DNS request failed...Not found\n");
-    ntp_result(state, -1, NULL);
+  //printf("\n-NTP DNS request failed...Not found\n");
+  ntp_result(state, -1, NULL);
   }
   ntpproceso=false;
 }
@@ -773,31 +818,31 @@ static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_ad
 
   // Check the result
   if (ip_addr_cmp(addr, &state->ntp_server_address) && port == NTP_PORT && p->tot_len == NTP_MSG_LEN &&
-    mode == 0x4 && stratum != 0) {
-    uint8_t seconds_buf[4] = {0};
-    pbuf_copy_partial(p, seconds_buf, sizeof(seconds_buf), 40);
-    uint32_t seconds_since_1900 = seconds_buf[0] << 24 | seconds_buf[1] << 16 | seconds_buf[2] << 8 | seconds_buf[3];
-    uint32_t seconds_since_1970 = seconds_since_1900 - NTP_DELTA;
-    time_t epoch = seconds_since_1970;
-    ntp_result(state, 0, &epoch);
+  mode == 0x4 && stratum != 0) {
+  uint8_t seconds_buf[4] = {0};
+  pbuf_copy_partial(p, seconds_buf, sizeof(seconds_buf), 40);
+  uint32_t seconds_since_1900 = seconds_buf[0] << 24 | seconds_buf[1] << 16 | seconds_buf[2] << 8 | seconds_buf[3];
+  uint32_t seconds_since_1970 = seconds_since_1900 - NTP_DELTA;
+  time_t epoch = seconds_since_1970;
+  ntp_result(state, 0, &epoch);
   } else {
-    //printf("\ninvalid NTP response\n");
-    ntp_result(state, -1, NULL);
+  //printf("\ninvalid NTP response\n");
+  ntp_result(state, -1, NULL);
   }
   pbuf_free(p);
 }
 
 static void NTPSetup(){
   if (!state) {
-    printf("failed to allocate state\n");        
+  printf("failed to allocate state\n");        
   }
   state->ntp_pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
   if (!state->ntp_pcb) {
-    printf("failed to create pcb\n");
-    free(state);        
+  printf("failed to create pcb\n");
+  free(state);        
   }
   else{
-    udp_recv(state->ntp_pcb, ntp_recv, state);
+  udp_recv(state->ntp_pcb, ntp_recv, state);
   } 
   rtc_init(); 
   printf("\n-NTP SETUP\n");  
@@ -805,29 +850,29 @@ static void NTPSetup(){
 
 void NTPLoop(){    
   if(Horas > ntpHoras+(uint64_t)(1)){
-    ntpupdated=false;
-    ntpHoras=Horas;        
+  ntpupdated=false;
+  ntpHoras=Horas;        
   } 
   if(ntpupdated==false&&ntpproceso==false){ 
-    ntpproceso=true;
-    cyw43_arch_lwip_begin();
-    int err = dns_gethostbyname(NTP_SERVER, &state->ntp_server_address, ntp_dns_found, state);
-    cyw43_arch_lwip_end();
-    //printf("\n-NTP DNS request sent\n");
-    state->dns_request_sent = true;
-    if (err == ERR_OK) {
-      ntp_request(); // Cached result
-    } else if (err == ERR_INPROGRESS) { // ERR_INPROGRESS means expect a callback
-      //printf("\n-NTP DNS request in progress\n");
-      ntp_result(state, -1, NULL);
-      sleep_ms(1000);
-    }  
-    else if(err != ERR_INPROGRESS && err != ERR_OK){
-      //printf("\n-NTP DNS request ERROR\n");
-      ntp_result(state, -1, NULL);
-      ErrorNTP++;
-      sleep_ms(5000);
-    }       
+  ntpproceso=true;
+  cyw43_arch_lwip_begin();
+  int err = dns_gethostbyname(NTP_SERVER, &state->ntp_server_address, ntp_dns_found, state);
+  cyw43_arch_lwip_end();
+  //printf("\n-NTP DNS request sent\n");
+  state->dns_request_sent = true;
+  if (err == ERR_OK) {
+    ntp_request(); // Cached result
+  } else if (err == ERR_INPROGRESS) { // ERR_INPROGRESS means expect a callback
+    //printf("\n-NTP DNS request in progress\n");
+    ntp_result(state, -1, NULL);
+    busy_wait_ms(1000);
+  }  
+  else if(err != ERR_INPROGRESS && err != ERR_OK){
+    //printf("\n-NTP DNS request ERROR\n");
+    ntp_result(state, -1, NULL);
+    ErrorNTP++;
+    busy_wait_ms(5000);
+  }       
   }
   RTC();
 }
@@ -835,8 +880,8 @@ void NTPLoop(){
 
 /* static int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   if(result){        
-    memcpy(&network[netnum], result, sizeof(*result));
-    netnum++;       
+  memcpy(&network[netnum], result, sizeof(*result));
+  netnum++;       
   }
   return 0;
 } */
@@ -846,19 +891,19 @@ static void Wifi_Reconnect(){
   iReconexion++;    
   cyw43_arch_deinit();    
   if (cyw43_arch_init_with_country(CYW43_COUNTRY('E', 'S', 0)) != 0) {        
-    printf("\n\nERROR cyw43------");
-    Wifi_Reconnect();
+  printf("\n\nERROR cyw43------");
+  Wifi_Reconnect();
   }
   else{
-    //printf("\n-Inicializando cyw43: ");
+  //printf("\n-Inicializando cyw43: ");
   }
   if(!cyw43_is_initialized(&cyw43_state)){       
-    printf("--NO INICIALIZADO-----------\n");
-    Wifi_Reconnect();
+  printf("--NO INICIALIZADO-----------\n");
+  Wifi_Reconnect();
   }
   else{
-    //printf("inicializado\n");
-    //extern cyw43_t cyw43_state;
+  //printf("inicializado\n");
+  //extern cyw43_t cyw43_state;
   }
   cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_PM1_POWERSAVE_MODE, 20, 1, 1, 1));   
   cyw43_arch_enable_sta_mode();
@@ -869,86 +914,86 @@ static void Wifi_Reconnect(){
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
   elapTime = time_us_64();
   while(cyw43_wifi_scan_active(&cyw43_state) == true){
-    if (err != 0) {
-      printf("\n-ERROR---scan redes WiFi: %d\n", err); 
-      Wifi_Reconnect();  
-    }        
-    elapTimeend = time_us_64();         
-    if(elapTimeend-elapTime > 10000000){ // 10 seg
-      printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
-      Wifi_Reconnect();            
-    }
+  if (err != 0) {
+    printf("\n-ERROR---scan redes WiFi: %d\n", err); 
+    Wifi_Reconnect();  
+  }        
+  elapTimeend = time_us_64();         
+  if(elapTimeend-elapTime > 10000000){ // 10 seg
+    printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
+    Wifi_Reconnect();            
+  }
   }
   printf("\n-----------Encontradas %i redes -- elapTime: %lli elapTimeEnd: %lli Delta mS: %lli ----------\n", netnum,elapTime,elapTimeend,(elapTimeend-elapTime)/1000);     
   for(int i = 0; i < netnum; i++){                
-    for(int j = 0; j < netnum; j++){
-      if(network[i].bssid[0] == network[j].bssid[0]){                
-        Duplic[i]++;                                                 
-      }     
-    }        
-    if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
-      printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
-      network[i].ssid, network[i].rssi, network[i].channel,
-      network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
-      network[i].auth_mode,Duplic[i], i);            
-    }      
-    BSSIDRaw[i] = network[i].bssid[0];                                  
+  for(int j = 0; j < netnum; j++){
+    if(network[i].bssid[0] == network[j].bssid[0]){                
+    Duplic[i]++;                                                 
+    }     
+  }        
+  if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
+    printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
+    network[i].ssid, network[i].rssi, network[i].channel,
+    network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
+    network[i].auth_mode,Duplic[i], i);            
+  }      
+  BSSIDRaw[i] = network[i].bssid[0];                                  
   }
   netnum = 0;     */
 
   if (cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK) != 0) {
-    printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
-    Wifi_Reconnect();
+  printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
+  Wifi_Reconnect();
   } 
   else{
-    //printf("\nConectando a %s...\n", WIFI_SSID); 
+  //printf("\nConectando a %s...\n", WIFI_SSID); 
   }          
   while (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != CYW43_LINK_UP){
-    cyw43_arch_poll();
-    sleep_ms(1);
-    if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
-      lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
-      switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
-      {      
-        case CYW43_LINK_UP:
-        {
-          cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-          //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
-          printf("\nConectado.\n");  
-          printf("SSID: %s\n", WIFI_SSID);
-          //printf("BSSID: %hhu\n", bssid);
-          printf("RSSI: %li\n", rssi);           
+  cyw43_arch_poll();
+  sleep_ms(1);
+  if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
+    lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
+    switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
+    {      
+    case CYW43_LINK_UP:
+    {
+      cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
+      //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
+      printf("\nConectado.\n");  
+      printf("SSID: %s\n", WIFI_SSID);
+      //printf("BSSID: %hhu\n", bssid);
+      printf("RSSI: %li\n", rssi);           
 
-          //extern cyw43_t cyw43_state;
-          auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-          printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-          
-          break;
-        }
-        case CYW43_LINK_DOWN:
-          printf("\nCYW43_LINK_DOWN.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_NOIP:
-          printf("\nCYW43_LINK_NOIP.\n");
-          break; 
-        case CYW43_LINK_FAIL:
-          printf("\nCYW43_LINK_FAIL.\n");
-          Wifi_Reconnect();
-          break;
-        case CYW43_LINK_NONET:
-          printf("\nCYW43_LINK_NONET.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_BADAUTH:
-          printf("\nCYW43_LINK_BADAUTH.\n");
-          Wifi_Reconnect();
-          break;       
-        default:
-          //printf("\nProcesando.\n");  
-          break;
-      };
+      //extern cyw43_t cyw43_state;
+      auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+      printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+      
+      break;
     }
+    case CYW43_LINK_DOWN:
+      printf("\nCYW43_LINK_DOWN.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_NOIP:
+      printf("\nCYW43_LINK_NOIP.\n");
+      break; 
+    case CYW43_LINK_FAIL:
+      printf("\nCYW43_LINK_FAIL.\n");
+      Wifi_Reconnect();
+      break;
+    case CYW43_LINK_NONET:
+      printf("\nCYW43_LINK_NONET.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_BADAUTH:
+      printf("\nCYW43_LINK_BADAUTH.\n");
+      Wifi_Reconnect();
+      break;       
+    default:
+      //printf("\nProcesando.\n");  
+      break;
+    };
+  }
   }
   ntpupdated=false;
   ntpproceso=false;        
@@ -960,71 +1005,71 @@ static void Wifi_Off(MQTT_CLIENT_T* stateM){
   mqtt_disconnect(stateM->mqtt_client);
   cyw43_arch_deinit();
   switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA)){
-    case CYW43_LINK_UP:
-    {
-      cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-      //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
-      printf("\nConectado.\n");  
-      printf("SSID: %s\n", WIFI_SSID);
-      //printf("BSSID: %hhu\n", bssid);
-      printf("RSSI: %li\n", rssi);
-      //extern cyw43_t cyw43_state;
-      auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-      printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);                    
-      break;
-    }
-    case CYW43_LINK_DOWN:
-      printf("\n-WiFi chip switched OFF!\n");                   
-      break;    
-    case CYW43_LINK_NOIP:
-      printf("\nCYW43_LINK_NOIP.\n");
-      break; 
-    case CYW43_LINK_FAIL:
-      printf("\nCYW43_LINK_FAIL.\n");                    
-      break;
-    case CYW43_LINK_NONET:
-      printf("\nCYW43_LINK_NONET.\n");                    
-      break;    
-    case CYW43_LINK_BADAUTH:
-      printf("\nCYW43_LINK_BADAUTH.\n");                   
-      break;       
-    default:
-      //printf("\nProcesando.\n");  
-      break;
+  case CYW43_LINK_UP:
+  {
+    cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
+    //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
+    printf("\nConectado.\n");  
+    printf("SSID: %s\n", WIFI_SSID);
+    //printf("BSSID: %hhu\n", bssid);
+    printf("RSSI: %li\n", rssi);
+    //extern cyw43_t cyw43_state;
+    auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+    printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);                    
+    break;
+  }
+  case CYW43_LINK_DOWN:
+    printf("\n-WiFi chip switched OFF!\n");                   
+    break;    
+  case CYW43_LINK_NOIP:
+    printf("\nCYW43_LINK_NOIP.\n");
+    break; 
+  case CYW43_LINK_FAIL:
+    printf("\nCYW43_LINK_FAIL.\n");                    
+    break;
+  case CYW43_LINK_NONET:
+    printf("\nCYW43_LINK_NONET.\n");                    
+    break;    
+  case CYW43_LINK_BADAUTH:
+    printf("\nCYW43_LINK_BADAUTH.\n");                   
+    break;       
+  default:
+    //printf("\nProcesando.\n");  
+    break;
   };
 }
 
 /* static void checkWiFiStatus(){
   if(wifidone==false){                   
-    cyw43_wifi_get_rssi(&cyw43_state, &rssi);
-    dbpercent = mapcustom(rssi,-95,-20,0,100); 
-    //extern cyw43_t cyw43_state;
-    //auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;        
-    printf("\nConectado.\n");  
-    printf("SSID: %s\n", WIFI_SSID);
-    printf("RSSI: %li -- %i% \n", rssi,dbpercent);
-    printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-    printf("I.Reconexion: %i\n",iReconexion);          
-    wifidone=true;
+  cyw43_wifi_get_rssi(&cyw43_state, &rssi);
+  dbpercent = mapcustom(rssi,-95,-20,0,100); 
+  //extern cyw43_t cyw43_state;
+  //auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;        
+  printf("\nConectado.\n");  
+  printf("SSID: %s\n", WIFI_SSID);
+  printf("RSSI: %li -- %i% \n", rssi,dbpercent);
+  printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+  printf("I.Reconexion: %i\n",iReconexion);          
+  wifidone=true;
   }       
 } */
 
 static void Wifi_Reconnect_Sleep(){ 
   //printf("\n---------------- RECONECTANDO ------------\n");    
   if (cyw43_arch_init_with_country(CYW43_COUNTRY('E', 'S', 0)) != 0) {        
-    printf("\n\nERROR cyw43------");
-    Wifi_Reconnect();
+  printf("\n\nERROR cyw43------");
+  Wifi_Reconnect();
   }
   else{
-    //printf("\n-Inicializando cyw43: ");
+  //printf("\n-Inicializando cyw43: ");
   }
   if(!cyw43_is_initialized(&cyw43_state)){        
-    printf("--NO INICIALIZADO-----------\n");
-    Wifi_Reconnect();
+  printf("--NO INICIALIZADO-----------\n");
+  Wifi_Reconnect();
   }
   else{
-    //printf("inicializado\n");
-    //extern cyw43_t cyw43_state;
+  //printf("inicializado\n");
+  //extern cyw43_t cyw43_state;
   }
   cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_PM1_POWERSAVE_MODE, 20, 1, 1, 1));
   //cyw43_wifi_pm(&cyw43_state ,CYW43_AGGRESSIVE_PM);
@@ -1039,106 +1084,106 @@ static void Wifi_Reconnect_Sleep(){
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
   elapTime = time_us_64();
   while(cyw43_wifi_scan_active(&cyw43_state) == true){
-    if (err != 0) {
-      printf("\n-ERROR---scan redes WiFi: %d\n", err); 
-      Wifi_Reconnect();  
-    }        
-    elapTimeend = time_us_64();         
-    if(elapTimeend-elapTime > 10000000){ // 10 seg
-      printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
-      Wifi_Reconnect();            
-    }
+  if (err != 0) {
+    printf("\n-ERROR---scan redes WiFi: %d\n", err); 
+    Wifi_Reconnect();  
+  }        
+  elapTimeend = time_us_64();         
+  if(elapTimeend-elapTime > 10000000){ // 10 seg
+    printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
+    Wifi_Reconnect();            
+  }
   }
   printf("\n-----------Encontradas %i redes -- elapTime: %lli elapTimeEnd: %lli Delta mS: %lli ----------\n", netnum,elapTime,elapTimeend,(elapTimeend-elapTime)/1000);       
   for(int i = 0; i < netnum; i++){                
-    for(int j = 0; j < netnum; j++){
-      if(network[i].bssid[0] == network[j].bssid[0]){                
-        Duplic[i]++;                                                 
-      }     
-    }        
-    if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
-      printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
-      network[i].ssid, network[i].rssi, network[i].channel,
-      network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
-      network[i].auth_mode,Duplic[i], i);            
-    }      
-    BSSIDRaw[i] = network[i].bssid[0];                                  
+  for(int j = 0; j < netnum; j++){
+    if(network[i].bssid[0] == network[j].bssid[0]){                
+    Duplic[i]++;                                                 
+    }     
+  }        
+  if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
+    printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
+    network[i].ssid, network[i].rssi, network[i].channel,
+    network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
+    network[i].auth_mode,Duplic[i], i);            
+  }      
+  BSSIDRaw[i] = network[i].bssid[0];                                  
   }
   netnum = 0; */
   //TEST--------------------------------------------------------------------
 
   if (cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK) != 0) {
-    printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
-    Wifi_Reconnect();
+  printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
+  Wifi_Reconnect();
   } 
   else{
-    //printf("\nConectando a %s...\n", WIFI_SSID); 
-    printf("\n-WiFi chip switched ON!\n");
+  //printf("\nConectando a %s...\n", WIFI_SSID); 
+  printf("\n-WiFi chip switched ON!\n");
   }          
   while (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != CYW43_LINK_UP){
-    cyw43_arch_poll();
-    sleep_ms(1);
-    if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
-      lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
-      switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
-      {      
-        case CYW43_LINK_UP:
-        {
-          cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-          //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
-          printf("\nConectado.\n");  
-          printf("SSID: %s\n", WIFI_SSID);
-          //printf("BSSID: %hhu\n", bssid);
-          printf("RSSI: %li\n", rssi);           
+  cyw43_arch_poll();
+  sleep_ms(1);
+  if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
+    lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
+    switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
+    {      
+    case CYW43_LINK_UP:
+    {
+      cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
+      //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
+      printf("\nConectado.\n");  
+      printf("SSID: %s\n", WIFI_SSID);
+      //printf("BSSID: %hhu\n", bssid);
+      printf("RSSI: %li\n", rssi);           
 
-          //extern cyw43_t cyw43_state;
-          auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-          printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-          
-          break;
-        }
-        case CYW43_LINK_DOWN:
-          printf("\nCYW43_LINK_DOWN.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_NOIP:
-          printf("\nCYW43_LINK_NOIP.\n");
-          break; 
-        case CYW43_LINK_FAIL:
-          printf("\nCYW43_LINK_FAIL.\n");
-          Wifi_Reconnect();
-          break;
-        case CYW43_LINK_NONET:
-          printf("\nCYW43_LINK_NONET.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_BADAUTH:
-          printf("\nCYW43_LINK_BADAUTH.\n");
-          Wifi_Reconnect();
-          break;       
-        default:
-          //printf("\nProcesando.\n");  
-          break;
-      };
+      //extern cyw43_t cyw43_state;
+      auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+      printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+      
+      break;
     }
+    case CYW43_LINK_DOWN:
+      printf("\nCYW43_LINK_DOWN.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_NOIP:
+      printf("\nCYW43_LINK_NOIP.\n");
+      break; 
+    case CYW43_LINK_FAIL:
+      printf("\nCYW43_LINK_FAIL.\n");
+      Wifi_Reconnect();
+      break;
+    case CYW43_LINK_NONET:
+      printf("\nCYW43_LINK_NONET.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_BADAUTH:
+      printf("\nCYW43_LINK_BADAUTH.\n");
+      Wifi_Reconnect();
+      break;       
+    default:
+      //printf("\nProcesando.\n");  
+      break;
+    };
+  }
   }    
 }
 
 static void Wifi_Setup(){
   if (cyw43_arch_init_with_country(CYW43_COUNTRY('E', 'S', 0)) != 0) {        
-    printf("\n\nERROR cyw43------");
-    Wifi_Reconnect();
+  printf("\n\nERROR cyw43------");
+  Wifi_Reconnect();
   }
   else{
-    printf("\n-Inicializando cyw43: ");
+  printf("\n-Inicializando cyw43: ");
   }
   if(!cyw43_is_initialized(&cyw43_state)){        
-    printf("--NO INICIALIZADO-----------\n");
-    Wifi_Reconnect();
+  printf("--NO INICIALIZADO-----------\n");
+  Wifi_Reconnect();
   }
   else{
-    printf("inicializado\n");
-    //extern cyw43_t cyw43_state;
+  printf("inicializado\n");
+  //extern cyw43_t cyw43_state;
   }
   cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_PM1_POWERSAVE_MODE, 20, 1, 1, 1));   
   cyw43_arch_enable_sta_mode();
@@ -1150,86 +1195,86 @@ static void Wifi_Setup(){
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
   elapTime = time_us_64();
   while(cyw43_wifi_scan_active(&cyw43_state) == true){
-    if (err != 0) {
-      printf("\n-ERROR---scan redes WiFi: %d\n", err); 
-      Wifi_Reconnect();  
-    }        
-    elapTimeend = time_us_64();         
-    if(elapTimeend-elapTime > 10000000){ // 10 seg
-      printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
-      Wifi_Reconnect();            
-    }
+  if (err != 0) {
+    printf("\n-ERROR---scan redes WiFi: %d\n", err); 
+    Wifi_Reconnect();  
+  }        
+  elapTimeend = time_us_64();         
+  if(elapTimeend-elapTime > 10000000){ // 10 seg
+    printf("\n-ERROR TIMEOUT---scan redes WiFi: %d\n", err);
+    Wifi_Reconnect();            
+  }
   }
   printf("\n-----------Encontradas %i redes -- elapTime: %lli elapTimeEnd: %lli Delta mS: %lli ----------\n", netnum,elapTime,elapTimeend,(elapTimeend-elapTime)/1000);       
   for(int i = 0; i < netnum; i++){                
-    for(int j = 0; j < netnum; j++){
-      if(network[i].bssid[0] == network[j].bssid[0]){                
-        Duplic[i]++;                                                 
-      }     
-    }        
-    if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
-      printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
-      network[i].ssid, network[i].rssi, network[i].channel,
-      network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
-      network[i].auth_mode,Duplic[i], i);            
-    }      
-    BSSIDRaw[i] = network[i].bssid[0];                                  
+  for(int j = 0; j < netnum; j++){
+    if(network[i].bssid[0] == network[j].bssid[0]){                
+    Duplic[i]++;                                                 
+    }     
+  }        
+  if(network[i].bssid[0] != BSSIDRaw[i-1] && network[i].bssid[0] != BSSIDRaw[i-2] && network[i].bssid[0] != BSSIDRaw[i-3]&& network[i].bssid[0] != BSSIDRaw[i-4] && network[i].bssid[0] != BSSIDRaw[i-5]){
+    printf("\nssid: %-19s rssi: %4d chan: %3d\nmac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\nDuplic: %i i: %i\n",
+    network[i].ssid, network[i].rssi, network[i].channel,
+    network[i].bssid[0], network[i].bssid[1], network[i].bssid[2], network[i].bssid[3], network[i].bssid[4], network[i].bssid[5],
+    network[i].auth_mode,Duplic[i], i);            
+  }      
+  BSSIDRaw[i] = network[i].bssid[0];                                  
   }
   netnum = 0;  */  
 
   if (cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK) != 0) {
-    printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
-    Wifi_Reconnect();
+  printf("ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
+  Wifi_Reconnect();
   } 
   else{
-    printf("\nConectando a: %s ...\n", WIFI_SSID); 
+  printf("\nConectando a: %s ...\n", WIFI_SSID); 
   }          
   while (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != CYW43_LINK_UP){
-    cyw43_arch_poll();
-    sleep_ms(1);
-    if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
-      lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
-      switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
-      {      
-        case CYW43_LINK_UP:
-        {
-          cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-          //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
-          printf("\nConectado.\n");  
-          printf("SSID: %s\n", WIFI_SSID);
-          //printf("BSSID: %hhu\n", bssid);
-          printf("RSSI: %li\n", rssi);           
+  cyw43_arch_poll();
+  sleep_ms(1);
+  if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
+    lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
+    switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
+    {      
+    case CYW43_LINK_UP:
+    {
+      cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
+      //cyw43_wifi_get_bssid(&cyw43_state, &bssid);                
+      printf("\nConectado.\n");  
+      printf("SSID: %s\n", WIFI_SSID);
+      //printf("BSSID: %hhu\n", bssid);
+      printf("RSSI: %li\n", rssi);           
 
-          //extern cyw43_t cyw43_state;
-          auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-          printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-          
-          break;
-        }
-        case CYW43_LINK_DOWN:
-          printf("\nCYW43_LINK_DOWN.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_NOIP:
-          printf("\nCYW43_LINK_NOIP.\n");
-          break; 
-        case CYW43_LINK_FAIL:
-          printf("\nCYW43_LINK_FAIL.\n");
-          Wifi_Reconnect();
-          break;
-        case CYW43_LINK_NONET:
-          printf("\nCYW43_LINK_NONET.\n");
-          Wifi_Reconnect();
-          break;    
-        case CYW43_LINK_BADAUTH:
-          printf("\nCYW43_LINK_BADAUTH.\n");
-          Wifi_Reconnect();
-          break;       
-        default:
-          //printf("\nProcesando.\n");  
-          break;
-      };
+      //extern cyw43_t cyw43_state;
+      auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+      printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+      
+      break;
     }
+    case CYW43_LINK_DOWN:
+      printf("\nCYW43_LINK_DOWN.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_NOIP:
+      printf("\nCYW43_LINK_NOIP.\n");
+      break; 
+    case CYW43_LINK_FAIL:
+      printf("\nCYW43_LINK_FAIL.\n");
+      Wifi_Reconnect();
+      break;
+    case CYW43_LINK_NONET:
+      printf("\nCYW43_LINK_NONET.\n");
+      Wifi_Reconnect();
+      break;    
+    case CYW43_LINK_BADAUTH:
+      printf("\nCYW43_LINK_BADAUTH.\n");
+      Wifi_Reconnect();
+      break;       
+    default:
+      //printf("\nProcesando.\n");  
+      break;
+    };
+  }
   }
 }
 
@@ -1243,7 +1288,7 @@ static void SetupInfo(){
   uint32_t start = time_us_64();
   int sum = adc_read();
   for (int i = 0; i < 10000; i++) {
-    sum += adc_read();
+  sum += adc_read();
   }
   uint32_t end = time_us_64();
   printf("\n--ADC reads per second: %0.0f", 10000.0 / ((end - start) * 0.000001));  */
@@ -1267,16 +1312,16 @@ static void serialInfo(bool old_voltage){
     // Get power val if it's changed
     if (old_voltage != voltage) {
       if (voltage_return == PICO_OK) {
-        //const float min_battery_volts = 3.0f;
-        //const float max_battery_volts = 4.2f;
-        //int percent_val = ((voltage - min_battery_volts) / (max_battery_volts - min_battery_volts)) * 100;
+      //const float min_battery_volts = 3.0f;
+      //const float max_battery_volts = 4.2f;
+      //int percent_val = ((voltage - min_battery_volts) / (max_battery_volts - min_battery_volts)) * 100;
       }
       // Also get the temperature
       adc_select_input(4); 
       adc = 0;
       for (size_t i = 0; i < PICO_POWER_SAMPLE_COUNT; i++)
       {
-        adc += (float)adc_read() * conversionFactor;
+      adc += (float)adc_read() * conversionFactor;
       }            
       tempC = 27.0f - ((adc/PICO_POWER_SAMPLE_COUNT) - 0.706f) / 0.001721f;
       old_voltage = voltage;            
@@ -1295,7 +1340,7 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     printf("\n--- TIMEOUT MQTT +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
-    printf("\n-STATUS---> \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-Tempcombdone:%d \n-inadone:%d \n-------\n\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,Tempcombdone,inadone);
+    printf("\n-Sensor status OK. MQTT bad: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);
     /* Wifi_Off(stateM);  
     Wifi_Reconnect_Sleep(); */
     ntpupdated=false;
@@ -1303,8 +1348,7 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     state->dns_request_sent = false;
     dhtdone=false;  
     bmpdone=false;
-    ldrdone=false;     
-    Tempcombdone=false;  
+    ldrdone=false;  
     inadone=false;     
     serialdone=false; 
     mqttdone=false;
@@ -1324,7 +1368,7 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-    sleep_ms(3000);
+    sleep_ms(30000);
   }else if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
@@ -1332,7 +1376,7 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     printf("\n--- TIMEOUT SENSORS +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
-    printf("\n-MQTT OK. Sensor status bad: -\nmqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-Tempcombdone:%d \n-inadone:%d \n-------\n\n",mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,Tempcombdone,inadone);    
+    printf("\n-MQTT OK. Sensor status bad:\n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d  \n-inadone:%d \n-------\n\n",mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);    
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1342,15 +1386,15 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-    sleep_ms(3000);}
-  else if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
+    sleep_ms(30000);
+  }else if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     printf("\n--- TIMEOUT MQTT+SENSORS +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
-    printf("\n-MQTT status BAD. Sensor status BAD: -\nmqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d      \n-ldrdone:%d \n-Tempcombdone:%d \n-inadone:%d \n-------\n\n",mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone, Tempcombdone,inadone);    
+    printf("\n-MQTT status BAD. Sensor status BAD:\n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d      \n-ldrdone:%d \n-inadone:%d \n-------\n\n",mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);    
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1360,11 +1404,12 @@ void mqttTimeout(MQTT_CLIENT_T *stateM){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-    sleep_ms(3000);}
+    sleep_ms(30000);
+  }
 }
 
 void Sleep(MQTT_CLIENT_T *stateM){
-  if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && Tempcombdone==true && inadone==true){    
+  if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){    
     Wifi_Off(stateM);                
     //-SLEEPING--
     #if DEBUG == true
@@ -1387,11 +1432,11 @@ int main() {
   set_sys_clock_khz(SYS_KHZ, true); 
   sleep_ms(10);
   clock_configure(
-    clk_peri,
-    0,                                                // No glitchless mux
-    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, // System PLL on AUX mux
-    SYS_KHZ * 1000,                                   // Input frequency
-    SYS_KHZ * 1000                                    // Output (must be same as no divider)
+  clk_peri,
+  0,                                                // No glitchless mux
+  CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, // System PLL on AUX mux
+  SYS_KHZ * 1000,                                   // Input frequency
+  SYS_KHZ * 1000                                    // Output (must be same as no divider)
   );  */      
   stdio_init_all(); 
   #if DEBUG == true
@@ -1413,7 +1458,8 @@ int main() {
   if (stateM->mqtt_client == NULL) {
     printf("-Failed to create new mqtt client\n");        
   }   
-  //-BMP280---------------  
+  //-BMP280---------------   
+  printf("\n-BMP280 SETUP..."); 
   //Baudrate 0.5Mhz - couldn't find in datasheet
   spi_init(spi0, 500000);
   //SPI acceptable 00 and 11 configuration
@@ -1423,11 +1469,7 @@ int main() {
   gpio_set_function(MISO, GPIO_FUNC_SPI);
   gpio_set_function(SCK, GPIO_FUNC_SPI);  
   BMP280::BMP280 bmp280 = BMP280::BMP280(spi0, CS);
-  spi_write_blocking(spi0, &data, 1);
-  spi_read_blocking(spi0, 0, &chipID, 1);
-  //Temperature oversampling x1, pressure oversampling x1 0x27
-  bmp280.setRegister(0xF4, 0b11101011, true);
-  bmp280.setPowerMode(BMP280::PowerMode::Forced);  
+  bmp280setup(bmp280); 
   //-FREQS.--------
   measure_freqs();
   //-LED OFF-----
@@ -1446,26 +1488,7 @@ int main() {
       NTPLoop();
       serialInfo(old_voltage);
       LoopINA219();      
-      LDRLoop();      
-      if(bmpdone==false && SegundosRawBMP + (uint64_t)2 < Segundos){
-        SegundosRawBMP = Segundos;
-        printf("\n---------- DEBUG ----------\n");
-        printf("ChipID: %#x\n", bmp280.readForChipID());
-        printf("Power mode: %i\n", bmp280.readPowerMode());
-        printf("Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));
-        printf("Temperature: %.2f[C]\n", bmp280.readTemperature());
-        printf("Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));
-        printf("Pressure: %.2f[hPa]\n", bmp280.readPressure(1));
-        printf("---------- END ----------\n\n");
-        if(bmp280.readForChipID()!=0){
-          bmpdone=true;
-        }
-      }
-      dht22();
-      if(Tempcombdone==false){
-        Tcomb = ((temperature/100.f) + temperature_c)/2;
-        Tempcombdone=true;
-      }                     
+      MedGen(bmp280);                     
       MQTT(stateM);
       mqttTimeout(stateM);
       Sleep(stateM);
