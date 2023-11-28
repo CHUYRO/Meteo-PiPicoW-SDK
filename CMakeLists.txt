@@ -36,13 +36,13 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-arduino-compat/libs/adafruit-ina219)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dht)
 
-add_executable(pico_w_Meteo 
+add_executable(main 
         main.cpp 
         bmp/BMP280.hpp
         bmp/BMP280.cpp   
         )
 
-target_compile_definitions(pico_w_Meteo PRIVATE
+target_compile_definitions(main PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"  
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
@@ -50,19 +50,19 @@ target_compile_definitions(pico_w_Meteo PRIVATE
         )
 
 # enable usb output, disable uart output
-pico_enable_stdio_usb(pico_w_Meteo 1)
-pico_enable_stdio_uart(pico_w_Meteo 0)   
+pico_enable_stdio_usb(main 1)
+pico_enable_stdio_uart(main 0)   
 
 # create map/bin/hex/uf2 files.         
-pico_add_extra_outputs(pico_w_Meteo)
+pico_add_extra_outputs(main)
 
-target_compile_options(pico_w_Meteo PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable -Werror=unused-but-set-variable -Wno-maybe-uninitialized -Wno-error=unused-value) 
+target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable -Werror=unused-but-set-variable -Wno-maybe-uninitialized -Wno-error=unused-value)
 
-target_include_directories(pico_w_Meteo PRIVATE
+target_include_directories(main PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         )
 
-target_link_libraries(pico_w_Meteo        
+target_link_libraries(main        
         pico_stdlib        
         pico_cyw43_arch_lwip_poll 
         pico_lwip_mqtt
@@ -70,7 +70,6 @@ target_link_libraries(pico_w_Meteo
         dht
         hardware_rtc
         hardware_adc 
-        hardware_i2c
         hardware_sleep  
         hardware_spi     
         )

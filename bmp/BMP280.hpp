@@ -15,7 +15,7 @@
 #define TEMP_MSB 0xFA
 #define TEMP_LSB 0xFB
 #define TEMP_XLSB 0xFC
-#pragma endregion 
+#pragma endregion
 
 //Module datasheet: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp280-ds001.pdf
 

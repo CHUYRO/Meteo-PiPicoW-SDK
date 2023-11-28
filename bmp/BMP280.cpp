@@ -1,5 +1,5 @@
 #include "BMP280.hpp"
-#define DEBUG true  
+#define DEBUG false  
 
 #if DEBUG == true
     #define DEBUG_REGISTER
