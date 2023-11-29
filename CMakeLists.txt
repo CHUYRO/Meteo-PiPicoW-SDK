@@ -16,10 +16,11 @@ endif()
 
 project(pico_w_Meteo C CXX)
 set(PICO_BOARD pico_w)
-set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+#set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 set(PICO_CXX_ENABLE_RTTI 0)
+set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 
 if (PICO_SDK_VERSION_STRING VERSION_LESS "1.5.1")
     message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.5.1 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
@@ -73,3 +74,9 @@ target_link_libraries(main
         hardware_sleep  
         hardware_spi     
         )
+
+#Print memory usage
+add_custom_command(TARGET main POST_BUILD
+COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/main.elf
+VERBATIM)        
+string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,--print-memory-usage")   

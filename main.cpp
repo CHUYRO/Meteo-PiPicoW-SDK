@@ -28,9 +28,6 @@
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 
-//-TEMPCOMB--------
-float Tcomb = 0;
-
 //-LDR--------------
 float ldrVal = -1, ldrValRaw = 0;
 
@@ -48,7 +45,7 @@ double temperature = 0, pressure = 0;
 static const dht_model_t DHT_MODEL = DHT22;
 static const uint DATA_PIN = 15;
 float humidity;
-float temperature_c;
+float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
 //-INA219------------------------- 
@@ -68,7 +65,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 #define PICO_FIRST_ADC_PIN 26
 
 //-FREQ.-----------------
-#define SYS_KHZ (60 * 1000) //Downclocked to 60 ---> NOT NOW, from previous iteration... must clean 
+#define SYS_KHZ (60 * 1000) //Downclocked to 60 ---> NOT NOW, from previous iteration... must cleanup this. 
 
 //-TIME------------------
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, Ttotal = 0, elapTime = 0, elapTimeend = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0,SegundosRawBMP = 0;
@@ -124,7 +121,7 @@ typedef struct MQTT_CLIENT_T_ {
   u32_t reconnect;
 } MQTT_CLIENT_T;
 
-//-----------------------------------FUNCIONES-------------------------------
+//-----------------------------------FUNC.-------------------------------
 
 //-INTERNAL TIME OF EXEC.--------------------------
 void __no_inline_not_in_flash_func(execTime)(){     
@@ -314,7 +311,7 @@ void mqtt_pub_request_cb(void *arg, err_t err) {
 err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
   char buffer[128];
   err_t err;
-  u8_t qos = 0; // 0, 1 or 2, ThingSpeak is 0.
+  u8_t qos = 0;   //0, 1 or 2. ThingSpeak is 0.
   u8_t retain = 0;    
   sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,Amp);
   String topicString = "channels/"+String(ChannelID)+"/publish"; 
@@ -362,7 +359,7 @@ void MQTT(MQTT_CLIENT_T* stateM){
       int errReconnect = mqtt_test_connect(stateM);     
       if(errReconnect != ERR_OK && errReconnect != ERR_ISCONN){               
         printf("-Connection BAD!\n");
-      ErrorMQTT++;
+        ErrorMQTT++;
       }else if(errReconnect == ERR_ISCONN){  
         printf("-Connection already ON!\n");         
       }                  
@@ -471,12 +468,13 @@ void recover_from_sleep(){
 
   //reset clocks
   clocks_init();
-  //try to reinit usb
+  //try to reinit usb - NOT working... after sleep usb comm. fail
   //stdio_init_all();
 
   return;
 }
-//Measure freqs.
+
+//-Measure freqs.--------------------------------------
 void measure_freqs() {
   uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
   uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
@@ -486,6 +484,7 @@ void measure_freqs() {
   uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
   uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
   uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
+
   //-SLEEP----------------    
   //save clock values for awake
   scb_orig = scb_hw->scr;
@@ -605,27 +604,6 @@ void LoopINA219() {
     ina219Setup();
   }  
 }
-
-//-VSYS VOLTAGE-----------------------------
-int power_voltage(float *voltage_result) {
-  cyw43_thread_enter();
-  // setup adc
-  adc_init();
-  adc_gpio_init(29);
-  adc_select_input(29 - PICO_FIRST_ADC_PIN);
-  // read vsys
-  uint32_t vsys = 0;
-  for(int i = 0; i < PICO_POWER_SAMPLE_COUNT; i++) {
-    vsys += adc_read();
-  }
-  vsys /= PICO_POWER_SAMPLE_COUNT;
-  cyw43_thread_exit();
-  // Generate voltage
-  const float conversion_factor = 3.3f / (1 << 12);
-  *voltage_result = vsys * 3 * conversion_factor;
-  return PICO_OK;
-}
-
 //-BMP280------------------------------------
 void bmp280setup(BMP280::BMP280 &bmp280) {
   spi_write_blocking(spi0, &data, 1);
@@ -671,7 +649,6 @@ void MedGen(BMP280::BMP280 &bmp280){
   dht22();
   Tcomb = (temperature + temperature_c)/2;
 }
-
 
 //-GENERIC----------------------------------
 long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
@@ -1080,6 +1057,25 @@ static void SetupInfo(){
 }
 
 //-SERIALINFO-----------------------------------
+int power_voltage(float *voltage_result) {
+  cyw43_thread_enter();
+  // setup adc
+  adc_init();
+  adc_gpio_init(29);
+  adc_select_input(29 - PICO_FIRST_ADC_PIN);
+  // read vsys
+  uint32_t vsys = 0;
+  for(int i = 0; i < PICO_POWER_SAMPLE_COUNT; i++) {
+    vsys += adc_read();
+  }
+  vsys /= PICO_POWER_SAMPLE_COUNT;
+  cyw43_thread_exit();
+  // Generate voltage
+  const float conversion_factor = 3.3f / (1 << 12);
+  *voltage_result = vsys * 3 * conversion_factor;
+  return PICO_OK;
+}
+
 static void serialInfo(bool old_voltage){
   if(serialdone==false){         
     //-TEMP
@@ -1110,6 +1106,7 @@ static void serialInfo(bool old_voltage){
   }
 }
 
+//-TIMEOUT CONTROL-------------------
 void TimeoutControl(MQTT_CLIENT_T *stateM){
   execTime();
   if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true && ntpupdated == true && ntpproceso == false){
@@ -1252,6 +1249,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
   }
 }
 
+//-SLEEP-------------------------------------
 void Sleep(MQTT_CLIENT_T *stateM){
   if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){    
     Wifi_Off(stateM);                
