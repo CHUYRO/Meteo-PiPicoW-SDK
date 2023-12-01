@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <math.h>
+
 #include <pico/stdlib.h>
 #include "pico/cyw43_arch.h"
 #include "pico/sleep.h"
@@ -16,8 +18,8 @@
 #include "hardware/structs/scb.h"
 #include "hardware/spi.h"
 
+#include <ina219.h>
 #include <dht/include/dht.h>
-#include <Adafruit_INA219.h>
 #include "bmp/BMP280.hpp"
 #include "tusb.h"
 
@@ -37,7 +39,7 @@ float ldrVal = -1, ldrValRaw = 0;
 #define CS 17
 #define MISO 16
 #define chip_id 0xD0
-uint8_t data = chip_id;
+uint8_t datachipid = chip_id;
 uint8_t chipID = 0;
 double temperature = 0, pressure = 0;
 
@@ -48,11 +50,11 @@ float humidity;
 float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
-//-INA219------------------------- 
-Adafruit_INA219 ina219;
-int inaCount = 20;
-float total_mA = 0, shuntvoltage = 0,busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, Amp = 0, total_mAM = 0, shuntRaw = 0, busvRaw = 0, currentmARaw = 0, power_mWRaw = 0;
-bool inafound = false;
+//-INA219-------------------------
+float total_mA = 0, shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, total_mAM = 0;
+float SHUNT_OHMS = 0.1;
+float MAX_EXPECTED_AMPS = 3.2;    
+INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
 
 //-READ VSYS----------------
 float old_voltage = 0, voltage = 0, adc = 0, tempC = 0;
@@ -65,7 +67,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 #define PICO_FIRST_ADC_PIN 26
 
 //-FREQ.-----------------
-#define SYS_KHZ (60 * 1000) //Downclocked to 60 ---> NOT NOW, from previous iteration... must cleanup this. 
+#define SYS_KHZ (60 * 1000) //Downclocked to 60 
 
 //-TIME------------------
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, Ttotal = 0, elapTime = 0, elapTimeend = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0,SegundosRawBMP = 0;
@@ -109,7 +111,7 @@ uint scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
 bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, ntpupdated = false, mqttproceso = false, ntpproceso = false;
 
 //MQTT---------------
-int ChannelID = 1713237;
+const char *ChannelID = "1713237";
 #define MQTT_SERVER_HOST "mqtt3.thingspeak.com"
 #define MQTT_SERVER_PORT 1883
 bool connStatus = false;
@@ -121,7 +123,7 @@ typedef struct MQTT_CLIENT_T_ {
   u32_t reconnect;
 } MQTT_CLIENT_T;
 
-//-----------------------------------FUNC.-------------------------------
+//----------------------------------- FUNC. START -------------------------------
 
 //-INTERNAL TIME OF EXEC.--------------------------
 void __no_inline_not_in_flash_func(execTime)(){     
@@ -313,11 +315,17 @@ err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
   err_t err;
   u8_t qos = 0;   //0, 1 or 2. ThingSpeak is 0.
   u8_t retain = 0;    
-  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,Amp);
-  String topicString = "channels/"+String(ChannelID)+"/publish"; 
+  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,current_mA);
+  const char *channels = "channels/";
+  const char *chanNum = ChannelID;
+  const char *publish = "/publish";
+  char topicString[25];   
+  strcpy(topicString, channels);
+  strcat(topicString, chanNum);
+  strcat(topicString, publish);
   mqttproceso = true;
   cyw43_arch_lwip_begin();
-  err = mqtt_publish(stateM->mqtt_client, topicString.c_str(), buffer, strlen(buffer), qos, retain, mqtt_pub_request_cb, stateM);
+  err = mqtt_publish(stateM->mqtt_client, topicString, buffer, strlen(buffer), qos, retain, mqtt_pub_request_cb, stateM);
   cyw43_arch_lwip_end();
   printf("-mqtt_test_publish: err %d\n", err);
 
@@ -548,65 +556,40 @@ void dht22() {
 
 //-INA219------------------------------------------
 void ina219Setup(){
-  // Try to initialize the INA219
-  if (!ina219.begin()) {
-    Serial.println("\n-Failed to find INA219 chip.");
-    inafound=false;
-  }
-  else{
-    Serial.println("\n-INA219 SETUP");  
-    inafound=true;  
-  }
-  //Default Calib.
-  //ina219.setCalibration_32V_2A();
-  // To use a slightly lower 32V, 1A range (higher precision on amps): 
-  //ina219.setCalibration_32V_1A(); 
-  // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
-  ina219.setCalibration_16V_400mA();
+  i.configure(RANGE_16V, GAIN_8_320MV, ADC_12BIT, ADC_12BIT);
 }
 
 void LoopINA219() {
-  if(inadone==false && inafound == true){
-    ina219.powerSave(false);
-    for(int i = 0; i < inaCount; i++){
-      shuntRaw += ina219.getShuntVoltage_mV();
-      busvRaw += ina219.getBusVoltage_V();
-      currentmARaw += ina219.getCurrent_mA();
-      power_mWRaw += ina219.getPower_mW();            
-    }
-    ina219.powerSave(true);
-    shuntvoltage=shuntRaw/inaCount;
-    busvoltage=busvRaw/inaCount;
-    current_mA=currentmARaw/inaCount;
-    power_mW=power_mWRaw/inaCount;
-    shuntRaw=0,busvRaw=0,currentmARaw=0,power_mWRaw=0;
-    Amp = current_mA;
-    if (Amp < 0){
-      Amp = 0;
-    }
-    current_A = Amp / 1000;        
+  if(inadone==false){   
+    i.wake();
+    busvoltage = i.voltage();
+    shuntvoltage = i.shunt_voltage();
+    current_mA = i.current(); 
+    power_mW = i.power();
+    loadvoltage = i.supply_voltage();
+    i.sleep(); 
+    if (current_mA < 0){
+      current_mA *=-1;
+    } 
+    current_A = current_mA / 1000;        
     if (power_mW < 0){
-      power_mW = 0;
+      power_mW *=-1;
     }
-    power_W = power_mW / 1000;
-    loadvoltage = busvoltage + (shuntvoltage / 1000);
-    total_mA += Amp;
+    power_W = power_mW / 1000;       
+    total_mA += current_mA;
     total_mAH = total_mA/188; 
-    /*if(Horas > 0){
+    if(Horas > 0){
       total_mAM = total_mAH / Horas;
     }
     else{
       total_mAM = total_mAH;
-    } */
+    } 
     inadone=true;
   }
-  else if(inafound == false){
-    ina219Setup();
-  }  
 }
 //-BMP280------------------------------------
 void bmp280setup(BMP280::BMP280 &bmp280) {
-  spi_write_blocking(spi0, &data, 1);
+  spi_write_blocking(spi0, &datachipid, 1);
   spi_read_blocking(spi0, 0, &chipID, 1);
   sleep_ms(10);
   if(!bmp280.setPowerMode(BMP280::PowerMode::Forced, true)){printf("\n-Error PowerMode\n");}else{printf("\n-Power mode: %i\n", bmp280.readPowerMode());}
@@ -765,9 +748,8 @@ static void ntp_result(NTP_T* state, int status, time_t *result) {
       setTimeRTC();
     }                 
   }
-  else{        
+  else if(status != 0 && !result && ntpproceso == false){        
     ntpupdated=false;
-    ntpproceso=false;
     ErrorNTP++;
   } 
   state->dns_request_sent = false;
@@ -786,7 +768,6 @@ static void ntp_request(){
   udp_sendto(state->ntp_pcb, p, &state->ntp_server_address, NTP_PORT);
   pbuf_free(p);
   cyw43_arch_lwip_end();
-  ntpproceso=false;
 }
 
 static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *arg){
@@ -840,9 +821,10 @@ static void NTPSetup(){
 }
 
 void __no_inline_not_in_flash_func(NTPLoop)(){    
-  if(Horas > ntpHoras+(uint64_t)(3)){
-    ntpupdated=false;
-    ntpHoras=Horas;        
+  if(Horas >= ntpHoras+(uint64_t)(3)){
+    ntpupdated = false;
+    ntpproceso = false;
+    ntpHoras = Horas;        
   } 
   if(ntpupdated == false && ntpproceso == false){ 
     ntpproceso = true;
@@ -945,18 +927,17 @@ static void __no_inline_not_in_flash_func(wifi_Conn)(bool Reconnect){
       switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA))
       {      
         case CYW43_LINK_UP:
-        {
-          cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-          cyw43_wifi_get_bssid(&cyw43_state, &bssid[1]);                
-          if(Reconnect==true){printf("\nReconectado.\n");}else{printf("\nConectado.\n");}  
-          printf("SSID: %s\n", WIFI_SSID);
-          printf("BSSID: %02lu:%lu:%lu:%lu:%lu:%lu\n", bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
-          printf("RSSI: %li\n", rssi);           
-
-          //extern cyw43_t cyw43_state;
-          auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-          printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-                
+        { 
+          #if DEBUG == true
+            cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
+            cyw43_wifi_get_bssid(&cyw43_state, &bssid[1]);                
+            if(Reconnect==true){printf("\nReconectado.\n");}else{printf("\nConectado.\n");}  
+            printf("SSID: %s\n", WIFI_SSID);
+            printf("BSSID: %02lu:%lu:%lu:%lu:%lu:%lu\n", bssid[0],bssid[1],bssid[2],bssid[3],bssid[4],bssid[5]);
+            printf("RSSI: %li\n", rssi);  
+            auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
+            printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
+          #endif               
           mqttdone=false;
           mqttproceso=false;
           ntpproceso = false;
@@ -969,26 +950,35 @@ static void __no_inline_not_in_flash_func(wifi_Conn)(bool Reconnect){
           break;
         }
         case CYW43_LINK_DOWN:
+          #if DEBUG == true
           printf("\nCYW43_LINK_DOWN.\n");
+          #endif
           wifi_Conn(true);
           break;    
         case CYW43_LINK_NOIP:
+          #if DEBUG == true
           printf("\nCYW43_LINK_NOIP.\n");
+          #endif
           break; 
         case CYW43_LINK_FAIL:
+          #if DEBUG == true
           printf("\nCYW43_LINK_FAIL.\n");
+          #endif
           wifi_Conn(true);
           break;
         case CYW43_LINK_NONET:
+          #if DEBUG == true
           printf("\nCYW43_LINK_NONET.\n");
+          #endif
           wifi_Conn(true);
           break;    
         case CYW43_LINK_BADAUTH:
+          #if DEBUG == true
           printf("\nCYW43_LINK_BADAUTH.\n");
+          #endif
           wifi_Conn(true);
           break;       
-        default:
-          //printf("\nProcesando.\n");  
+        default: 
           break;
       };
     }
@@ -1116,7 +1106,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     printf("\n--- TIMEOUT MQTT +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
-    printf("\n-NTP OK. Sensors status OK. MQTT bad: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);
+    printf("\n-NTP OK. Sensors status OK. MQTT BAD: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);
     dhtdone=false;  
     bmpdone=false;
     ldrdone=false;  
@@ -1124,6 +1114,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     serialdone=false; 
     mqttdone=false;
     mqttproceso=false;
+    sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1141,7 +1132,8 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
     printf("\n--- TIMEOUT SENSORS +%lli SECONDS, sysSeg: %lli mqttlastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
-    printf("\n-NTP OK. MQTT OK. Sensors status bad: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);    
+    printf("\n-NTP OK. MQTT OK. Sensors status BAD: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);   
+    sleep_ms(300); 
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1167,6 +1159,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     serialdone=false; 
     mqttdone=false;
     mqttproceso=false;   
+    sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1188,6 +1181,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     ntpproceso=false;
     ntpupdated=false;
     state->dns_request_sent = false;
+    sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1216,6 +1210,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     serialdone=false; 
     mqttdone=false;
     mqttproceso=false;  
+    sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1246,6 +1241,32 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     sleep_ms(300);
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
     sleep_ms(3000);
+  }else if(StartingSEC+(uint64_t)(230) <= Segundos && mqttproceso == true){
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    printf("\n--- TIMEOUT MQTTproceso(ONLY) +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---",Segundos-StartingSEC,Segundos,StartingSEC);
+    printf("\n-MQTTproceso status BAD: \n-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n-------\n",ntpupdated,ntpproceso,InitTimeGet,mqttdone,mqttproceso,dhtdone,bmpdone,ldrdone,inadone);
+    dhtdone=false;  
+    bmpdone=false;
+    ldrdone=false;  
+    inadone=false;     
+    serialdone=false; 
+    mqttdone=false;
+    mqttproceso=false;
+    StartingSEC=Segundos;
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+    sleep_ms(300);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   }
 }
 
@@ -1267,9 +1288,8 @@ void Sleep(MQTT_CLIENT_T *stateM){
     wifi_Conn(false);        
   } 
 }
-
-//-------------------------------------------CORE0--------------------------------------
-int main() {    
+//-------------- END FUNC. --------------------
+int __no_inline_not_in_flash_func(main)() {    
   //- SYSTEM SETUP -----------
   /*vreg_set_voltage(VREG_VOLTAGE_0_90);
   sleep_ms(10); 
@@ -1314,11 +1334,11 @@ int main() {
   gpio_set_function(SCK, GPIO_FUNC_SPI);  
   BMP280::BMP280 bmp280 = BMP280::BMP280(spi0, CS);
   bmp280setup(bmp280);   
-  //-LED OFF----------
+  //-LED OFF-----------
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-  //-SETUPTIME--------
+  //-SETUPTIME---------
   TiempoLoop = time_us_64()-TiempoWait;
-  printf("\n-SETUP OK!  -T.Wait: %ims -T.Setup: %ims -T.Total: %ims\n",TiempoWait/1000,TiempoLoop/1000,(TiempoWait+TiempoLoop)/1000);        
+  printf("\n-SETUP OK! -T.Wait: %ims -T.Setup: %ims -T.Total: %ims\n",TiempoWait/1000,TiempoLoop/1000,(TiempoWait+TiempoLoop)/1000);        
   printf("\n------------ INICIANDO -----------\n");
   //- END SETUP -------------- 
   //- START LOOP -------------
@@ -1336,7 +1356,7 @@ int main() {
       TimeoutControl(stateM);
       Sleep(stateM);
     }
-    printf("\n------- LOOP WIFI ERROR ----------\n");
+    printf("\n------- LOOP WIFI ERROR -------\n");
     wifi_Conn(true);    
   }
   cyw43_arch_deinit();     

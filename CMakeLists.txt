@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-# initialize the SDK based on PICO_SDK_PATH
-# note: this must happen before project()
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
         include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
 else()
@@ -18,7 +16,6 @@ project(pico_w_Meteo C CXX)
 set(PICO_BOARD pico_w)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 set(PICO_CXX_ENABLE_RTTI 0)
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 
@@ -31,10 +28,10 @@ pico_sdk_init()
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/credentials.cmake)
         include(${CMAKE_CURRENT_LIST_DIR}/cmake/credentials.cmake)
 else()
-        message(WARNING "Credentials file not found, using default values!")
+        message(WARNING "Credentials file not found")
 endif()
 
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-arduino-compat/libs/adafruit-ina219)
+include("ina219/ina219.cmake")
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/dht)
 
 add_executable(main 
@@ -66,9 +63,9 @@ target_include_directories(main PRIVATE
 target_link_libraries(main        
         pico_stdlib        
         pico_cyw43_arch_lwip_poll 
-        pico_lwip_mqtt
-        pac-adafruit-ina219
+        pico_lwip_mqtt        
         dht
+        ina219
         hardware_rtc
         hardware_adc 
         hardware_sleep  
