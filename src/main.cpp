@@ -20,21 +20,23 @@
 
 #include <ina219.h>
 #include <dht22.h>
-#include "bmp280.hpp"
+#include <bmp280.hpp>
 
 #define DEBUG false 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
+  #define DEBUGINA219 false
+  #define SLEEPTIME 10
   #include "tusb.h"
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
+  #define DEBUGINA219 false
+  #define SLEEPTIME 180
 #endif
-
-#define SLEEPTIME 180
 
 #define UNDERCLOCK false
 #if UNDERCLOCK 
@@ -60,6 +62,7 @@ float ldrVal = -1, ldrValRaw = 0;
 uint8_t datachipid = chip_id;
 uint8_t chipID = 0;
 double temperature = 0, pressure = 0;
+BMP280::BMP280 bmp280 = BMP280::BMP280(spi0, CS);
 
 //-DHT22-------------
 static const dht_model_t DHT_MODEL = DHT22;
@@ -574,7 +577,7 @@ void __no_inline_not_in_flash_func(dht22)() {
 
 //-INA219------------------------------------------
 void ina219Setup(){
-  i.configure(RANGE_16V, GAIN_8_320MV, ADC_32SAMP, ADC_32SAMP);
+  i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
 
 void __no_inline_not_in_flash_func(LoopINA219)() {
@@ -603,10 +606,29 @@ void __no_inline_not_in_flash_func(LoopINA219)() {
       total_mAM = total_mAH;
     } 
     inadone=true;
+    #if DEBUGINA219
+      printf("\n------ INA219 DEBUG ------\n");
+      printf("-busvoltage: %.3f V\n", busvoltage);
+      printf("-shuntvoltage: %.2f mV\n", shuntvoltage);
+      printf("-loadvoltage: %.3f V\n", loadvoltage);
+      printf("-current_mA: %.2f mA\n", current_mA);
+      printf("-power_mW: %.2f mW\n", power_mW);
+      printf("---------- END ----------\n");
+    #endif  
   }
 }
 //-BMP280------------------------------------
-void bmp280setup(BMP280::BMP280 &bmp280) {
+void bmp280setup() {
+  printf("\n-BMP280 SETUP");   
+  spi_init(spi0, 500000);                     //Baudrate 0.5Mhz - couldn't find in datasheet
+  spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, (spi_order_t)0); //SPI acceptable 00 and 11 configuration
+  gpio_set_function(MOSI, GPIO_FUNC_SPI);     //Mapping GPIO
+  gpio_set_function(MISO, GPIO_FUNC_SPI);
+  gpio_set_function(SCK, GPIO_FUNC_SPI);
+  gpio_init(CS);
+  gpio_set_dir(CS, true);
+  gpio_put(CS, true);
+  bmp280.getTrimmingParameters();
   spi_write_blocking(spi0, &datachipid, 1);
   spi_read_blocking(spi0, 0, &chipID, 1);
   sleep_ms(10);
@@ -620,7 +642,7 @@ void bmp280setup(BMP280::BMP280 &bmp280) {
   if(!bmp280.setOversampling(BMP280::Pressure, (uint8_t)1, true)){printf("\n-Error OVS PRESS\n");}else{printf("-Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));}
   sleep_ms(10);
 } 
-void __no_inline_not_in_flash_func(bmp280loop)(BMP280::BMP280 &bmp280) {
+void __no_inline_not_in_flash_func(bmp280loop)() {
   if(bmpdone==false && SegundosRawBMP + (uint64_t)1 < Segundos){
     if(bmp280.readForChipID()!=0){
       bmpdone=true;
@@ -644,9 +666,9 @@ void __no_inline_not_in_flash_func(bmp280loop)(BMP280::BMP280 &bmp280) {
   }
 } 
 
-void __no_inline_not_in_flash_func(MedGen)(BMP280::BMP280 &bmp280){
+void __no_inline_not_in_flash_func(MedGen)(){
   LDRLoop();      
-  bmp280loop(bmp280);
+  bmp280loop();
   dht22();
   Tcomb = (temperature + temperature_c)/2;
 }
@@ -1132,7 +1154,7 @@ static void __no_inline_not_in_flash_func(serialInfo)(bool old_voltage){
   }
 }
 
-//-TIMEOUT CONTROL-------------------
+//-TIMEOUT CONTROL-------------------(WIP)
 void __no_inline_not_in_flash_func(TimeoutControl)(MQTT_CLIENT_T *stateM){
   execTime();
   if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true && ntpupdated == true && ntpproceso == false){
@@ -1317,7 +1339,7 @@ void __no_inline_not_in_flash_func(Sleep)(MQTT_CLIENT_T *stateM){
       printf("-Awaking...\n");
     #else
       sleep_run_from_xosc();                                
-      rtc_sleep_custom(0,SLEEPTIME); //180sec sleep
+      rtc_sleep_custom(0,SLEEPTIME);
       recover_from_sleep();
     #endif
     //-SLEEP DONE--  
@@ -1345,7 +1367,7 @@ int __no_inline_not_in_flash_func(main)() {
   stdio_init_all(); 
   sleep_ms(10);
   #if DEBUG 
-    while(!tud_cdc_connected()){sleep_ms(1);}//Wait to console ready
+    while(!tud_cdc_connected()){sleep_ms(1);}       //Wait to console ready
     sleep_ms(50);
   #endif   
   TiempoWait = time_us_64();
@@ -1353,7 +1375,8 @@ int __no_inline_not_in_flash_func(main)() {
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
   wifi_Conn(false);
-  ina219Setup();     
+  ina219Setup(); 
+  bmp280setup();    
   NTPSetup();    
   //- MQTT --------------
   MQTT_CLIENT_T *stateM = mqtt_client_init();     
@@ -1362,19 +1385,7 @@ int __no_inline_not_in_flash_func(main)() {
   stateM->counter = 0;
   if (stateM->mqtt_client == NULL) {
     printf("-Failed to create new mqtt client\n");        
-  }   
-  //- BMP280 ------------   
-  printf("\n-BMP280 SETUP"); 
-  //Baudrate 0.5Mhz - couldn't find in datasheet
-  spi_init(spi0, 500000);
-  //SPI acceptable 00 and 11 configuration
-  spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, (spi_order_t)0);
-  //Mapping GPIO
-  gpio_set_function(MOSI, GPIO_FUNC_SPI);
-  gpio_set_function(MISO, GPIO_FUNC_SPI);
-  gpio_set_function(SCK, GPIO_FUNC_SPI);  
-  BMP280::BMP280 bmp280 = BMP280::BMP280(spi0, CS);
-  bmp280setup(bmp280);   
+  }
   //- ONBOARD LED OFF -----------
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   //- SETUPTIME ---------
@@ -1392,7 +1403,7 @@ int __no_inline_not_in_flash_func(main)() {
       NTPLoop();
       serialInfo(old_voltage);
       LoopINA219();      
-      MedGen(bmp280);                     
+      MedGen();                     
       MQTT(stateM);
       TimeoutControl(stateM);
       Sleep(stateM);      

@@ -15,19 +15,9 @@ namespace BMP280
     /// @param cs Index of Chip-select Pin.
     BMP280::BMP280(spi_inst_t *spi, uint cs)
     {
+        //this->getTrimmingParameters();
         _spiInst = spi;
         _cs = cs;
-        gpio_init(_cs);
-        gpio_set_dir(_cs, true);
-        gpio_put(_cs, true);
-
-        //Default configuration.
-        _powerMode = PowerMode::Sleep;
-        this->getTrimmingParameters();
-        this->setOversampling(Type::Temperature, 8);
-        sleep_ms(100);
-        this->setOversampling(Type::Pressure, 8);
-        sleep_ms(100);
     }
 
     /// @brief Default destructor.

@@ -62,6 +62,9 @@ namespace BMP280{
         uint32_t getRawPressure() const;
         double readPressure(int unit = 0);
         double getPressure(int unit = 0) const;
+
+        void getTrimmingParameters();
+
     private:
         spi_inst_t *_spiInst;
         uint _cs;
@@ -89,9 +92,6 @@ namespace BMP280{
         int16_t dig_P6;
         int16_t dig_P7;
         int16_t dig_P8;
-        int16_t dig_P9;
-
-    private:
-        void getTrimmingParameters();
+        int16_t dig_P9;            
     };
 }
