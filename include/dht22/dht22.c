@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <dht.h>
-#include <dht.pio.h>
+#include <dht22.h>
+#include <dht22.pio.h>
 #include <hardware/clocks.h>
 #include <hardware/dma.h>
 #include <pico/stdlib.h>

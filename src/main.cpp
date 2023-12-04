@@ -19,15 +19,15 @@
 #include "hardware/spi.h"
 
 #include <ina219.h>
-#include <dht/include/dht.h>
-#include "bmp/BMP280.hpp"
-#include "tusb.h"
+#include <dht22.h>
+#include "bmp280.hpp"
 
 #define DEBUG false 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
+  #include "tusb.h"
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
