@@ -44,17 +44,11 @@ target_compile_definitions(main PRIVATE
         WIFI_SSID=\"${WIFI_SSID}\"
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"  
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
-        MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"   
+        MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
+        NDEBUG=0  #LWIP debug logging, 1:disable lwipopts.h -- 0:enable lwipopts.h ??
         )
 
-# enable usb output, disable uart output
-pico_enable_stdio_usb(main 1)
-pico_enable_stdio_uart(main 0)   
-
-# create map/bin/hex/uf2 files.         
-pico_add_extra_outputs(main)
-
-target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable -Werror=unused-but-set-variable -Wno-maybe-uninitialized -Wno-error=unused-value)
+target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value) 
 
 target_include_directories(main PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
@@ -77,3 +71,10 @@ add_custom_command(TARGET main POST_BUILD
 COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/main.elf
 VERBATIM)        
 string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,--print-memory-usage")   
+
+# enable usb output, disable uart output
+pico_enable_stdio_usb(main 1)
+pico_enable_stdio_uart(main 0)   
+
+# create map/bin/hex/uf2 files.         
+pico_add_extra_outputs(main)
