@@ -1,4 +1,3 @@
 .vscode
 build
 cmake/credentials.cmake
-README.md
