@@ -35,6 +35,7 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/ina219)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/dht22)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/bmp280)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/wifiLib)
 
 add_executable(main 
         src/main.cpp  
@@ -45,6 +46,7 @@ target_compile_definitions(main PRIVATE
         WIFI_PASSWORD=\"${WIFI_PASSWORD}\"  
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
+        PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\" 
         #NDEBUG=0  #LWIP debug logging, 1:disable lwipopts.h -- 0:enable lwipopts.h ??
         )
 
@@ -65,6 +67,7 @@ target_link_libraries(main
         bmp280      
         dht22
         ina219   
+        wifiLib
         )
 
 #Print memory usage

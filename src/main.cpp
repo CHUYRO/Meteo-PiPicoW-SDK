@@ -21,8 +21,9 @@
 #include <ina219.h>
 #include <dht22.h>
 #include <bmp280.hpp>
+#include <wifiLib.hpp>
 
-#define DEBUG false 
+#define DEBUG true 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -93,12 +94,7 @@ bool movida = false, InitTimeGet = false;
 long int movidaDebug = 0, minutos = 0, hora = 0, segundos = 0, ErrorMQTT = 0, ErrorNTP = 0, Timeout = 0;
 
 //-WIFI-----------------
-const int numMaxNets=40;
-cyw43_ev_scan_result_t network[numMaxNets];
-long int rssi = 0;
-int iReconexion = 0, dbpercent = 0, netnum = 0, lastStatus = 33;    
-uint8_t bssidConex[6]; 
-bool netFound = false;  
+wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 
 //-NTP------------------
 typedef struct NTP_T_ {
@@ -497,7 +493,7 @@ void recover_from_sleep(){
 
   //reset clocks
   clocks_init();
-  //try to reinit usb - NOT working... after sleep usb comm. fail
+  //try to reinit usb - NOT working... after sleep usb down
   //stdio_init_all();
 
   return;
@@ -785,7 +781,9 @@ static void ntp_result(NTP_T* state, int status, time_t *result) {
         DiaComienzo=dianum;
         MesComienzo=mes;
         InitTimeGet = true;
-        printf("\n-FECHA INIT.: %02i/%02i %02i:%02i:%02i\n",DiaComienzo,MesComienzo,HoraComienzo,MinutoComienzo,SegundoComienzo);
+        #if DEBUG
+          printf("\n-FECHA INIT.: %02i/%02i %02i:%02i:%02i\n",DiaComienzo,MesComienzo,HoraComienzo,MinutoComienzo,SegundoComienzo);
+        #endif 
       }  
       setTimeRTC();
     }                 
@@ -883,206 +881,7 @@ void __no_inline_not_in_flash_func(NTPLoop)(){
   }
   RTC();
 }
-//-WIFI----------------------------------------------------
 
-static int __no_inline_not_in_flash_func(scan_result)(void *env, const cyw43_ev_scan_result_t *result) {
-  if(result){     
-    network[netnum] = *result;    
-    netnum++;        
-  }
-  return 0;
-}  
-
-static void __no_inline_not_in_flash_func(wifi_Conn)(bool Reconnect){
-  if(Reconnect==true){
-    printf("\n---------------- RECONECTANDO ---------------\n");
-    iReconexion++;   
-    cyw43_arch_deinit();
-  }      
-  if (cyw43_arch_init_with_country(CYW43_COUNTRY('E', 'S', 0)) != 0) {        
-    printf("\n\nERROR cyw43------");    
-    wifi_Conn(true);
-  }
-  if(!cyw43_is_initialized(&cyw43_state)){       
-    printf("--NO INICIALIZADO-----------\n");
-    wifi_Conn(true);
-  }
-  cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_PM1_POWERSAVE_MODE, 20, 1, 1, 1));   
-  cyw43_arch_enable_sta_mode();
-  netif_set_hostname(netif_default, "PicoW_Meteo");
-  #if DEBUG
-    uint64_t elapTime = 0, elapTimeend = 0, elapTimeendRaw = 0;
-    elapTime = time_us_64();
-    cyw43_wifi_scan_options_t scan_options = {0};  
-    int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
-    if(err == 0){printf("\n-Escaneando redes WiFi");}
-    else{printf("-ERROR---Scan redes WiFi: %d\n", err);wifi_Conn(true);}  
-    while(cyw43_wifi_scan_active(&cyw43_state) == true){      
-      elapTimeend = time_us_64();   
-      if(elapTimeendRaw + 200000 < elapTimeend){
-        printf(".");
-        elapTimeendRaw=elapTimeend;
-      }      
-      if(elapTimeend-elapTime > 5000000){ //5 seg timeout
-        printf("-ERROR TIMEOUT---Scan redes WiFi err: %d\n", err);
-        wifi_Conn(true);            
-      }
-      cyw43_arch_poll();
-      sleep_ms(1);
-    } 
-    printf("\n");
-    uint8_t bssid[6],BSSIDRaw[netnum][6],AUTHRaw[netnum],*SSIDRaw[netnum]; 
-    uint16_t CHANNELRaw[netnum];
-    int16_t RSSIRaw[netnum];
-    int Duplic[netnum],totNets=0; 
-    for(int x = 0; x < netnum; x++){Duplic[x]=0;AUTHRaw[x]=0;SSIDRaw[x]=0;CHANNELRaw[x]=0;RSSIRaw[x]=0;for(int y = 0; y < 6; y++){BSSIDRaw[x][y]=0;}}      
-    for(int i = 0; i < netnum; i++){                
-      for(int j = 0; j < netnum; j++){
-        if(network[i].bssid[0] == network[j].bssid[0] && network[i].bssid[1] == network[j].bssid[1] && network[i].bssid[2] == network[j].bssid[2] && network[i].bssid[3] == network[j].bssid[3] && network[i].bssid[4] == network[j].bssid[4] && network[i].bssid[5] == network[j].bssid[5]){    
-          Duplic[i]++;      
-          if(network[i].bssid[0] != BSSIDRaw[j][0] || network[i].bssid[1] != BSSIDRaw[j][1] || network[i].bssid[2] != BSSIDRaw[j][2] || network[i].bssid[3] != BSSIDRaw[j][3] || network[i].bssid[4] != BSSIDRaw[j][4] || network[i].bssid[5] != BSSIDRaw[j][5]){       
-            if(Duplic[i]==1 && network[i].rssi != 0 && network[i].channel != 0){           
-              AUTHRaw[i] = network[i].auth_mode;
-              RSSIRaw[i] = network[i].rssi;
-              CHANNELRaw[i] = network[i].channel;
-              SSIDRaw[i] = static_cast<uint8_t*>(network[i].ssid);
-              BSSIDRaw[i][0] = network[i].bssid[0];  
-              BSSIDRaw[i][1] = network[i].bssid[1];     
-              BSSIDRaw[i][2] = network[i].bssid[2]; 
-              BSSIDRaw[i][3] = network[i].bssid[3];  
-              BSSIDRaw[i][4] = network[i].bssid[4];
-              BSSIDRaw[i][5] = network[i].bssid[5]; 
-              totNets++;            
-              if(*SSIDRaw[i] == 0){
-                SSIDRaw[i]=(uint8_t*)"NO_SSID";   
-              }
-              if(strcmp(WIFI_SSID,(const char *)SSIDRaw[i])==0){netFound=true;}
-              printf("\n-ssid: %s -rssi:%d -ch:%d\n-mac: %lu:%lu:%lu:%lu:%lu:%lu -sec:%u\n",SSIDRaw[i],RSSIRaw[i], CHANNELRaw[i], BSSIDRaw[i][0], BSSIDRaw[i][1], BSSIDRaw[i][2], BSSIDRaw[i][3], BSSIDRaw[i][4], BSSIDRaw[i][5],AUTHRaw[i]);
-            }         
-          }                                                 
-        }       
-      }         
-    }  
-    elapTimeend = time_us_64();   
-    netnum=0;
-  #else
-    netFound=true;  
-  #endif
-  if(netFound==true){
-    #if DEBUG
-      printf("\n-%s encontrada! -- %i redes totales -- ScanTime: %lli ms\n",WIFI_SSID,totNets,(elapTimeend-elapTime)/1000);
-    #endif
-    if(cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK) != 0) {
-      printf("-ERROR--Conexión WiFi Async--E: %i\n",cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK));
-      wifi_Conn(true);
-    }else{
-      #if DEBUG
-        printf("\n-Conectando a %s...\n", WIFI_SSID);
-      #endif
-    }          
-    while (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != CYW43_LINK_UP){
-      cyw43_arch_poll();
-      sleep_ms(1);
-      if (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) != lastStatus){
-        lastStatus = cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA);
-        switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA)){      
-          case CYW43_LINK_UP:
-          { 
-            #if DEBUG 
-              cyw43_wifi_get_rssi(&cyw43_state, &rssi);                   
-              cyw43_wifi_get_bssid(&cyw43_state, bssidConex);                
-              if(Reconnect==true){printf("\n-Reconectado.\n");}else{printf("\n-Conectado.\n");}  
-              printf("--SSID: %s\n", WIFI_SSID);
-              printf("--BSSID: %lu:%lu:%lu:%lu:%lu:%lu\n", bssidConex[0],bssidConex[1],bssidConex[2],bssidConex[3],bssidConex[4],bssidConex[5]);
-              printf("--RSSI: %li\n", rssi);  
-              auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-              printf("--IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24);
-            #endif               
-            mqttdone=false;
-            mqttproceso=false;
-            ntpproceso = false;
-            state->dns_request_sent = false;
-            dhtdone=false;  
-            bmpdone=false;
-            ldrdone=false;   
-            inadone=false;     
-            serialdone=false; 
-            break;
-          }
-          case CYW43_LINK_DOWN:
-            #if DEBUG 
-              printf("\n-CYW43_LINK_DOWN.\n");
-            #endif
-            wifi_Conn(true);
-            break;    
-          case CYW43_LINK_NOIP:
-            #if DEBUG 
-              printf("\n-CYW43_LINK_NOIP.\n");
-            #endif
-            break; 
-          case CYW43_LINK_FAIL:
-            #if DEBUG
-              printf("\n-CYW43_LINK_FAIL.\n");
-            #endif
-            wifi_Conn(true);
-            break;
-          case CYW43_LINK_NONET:
-            #if DEBUG 
-              printf("\n-CYW43_LINK_NONET.\n");
-            #endif
-            wifi_Conn(true);
-            break;    
-          case CYW43_LINK_BADAUTH:
-            #if DEBUG 
-              printf("\n-CYW43_LINK_BADAUTH.\n");
-            #endif
-            wifi_Conn(true);
-            break;       
-          default: 
-            break;
-        };
-      }
-    }
-  }else{printf("\n-%s NO encontrada!\n", WIFI_SSID);netFound=false;wifi_Conn(true);}  
-}
-
-static void __no_inline_not_in_flash_func(Wifi_Off)(MQTT_CLIENT_T* stateM){
-  mqtt_disconnect(stateM->mqtt_client);
-  cyw43_arch_deinit();
-  switch (cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA)){
-  case CYW43_LINK_UP:
-  { 
-    printf("\n--------ERROR no deberia estar conectado.-----------\n"); 
-    cyw43_wifi_get_rssi(&cyw43_state, &rssi);               
-    printf("\nConectado.\n");  
-    printf("SSID: %s\n", WIFI_SSID);
-    printf("RSSI: %li\n", rssi);
-    auto ip_addr = cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr;
-    printf("IP: %lu.%lu.%lu.%lu\n", ip_addr & 0xFF, (ip_addr >> 8) & 0xFF, (ip_addr >> 16) & 0xFF, ip_addr >> 24); 
-    printf("\n----------ERROR no deberia estar conectado.-------\n");                   
-    break;
-  }
-  case CYW43_LINK_DOWN:
-    #if DEBUG
-      printf("\n-WiFi chip switched OFF!\n");
-    #endif                    
-    break;    
-  case CYW43_LINK_NOIP:
-    printf("\nCYW43_LINK_NOIP.\n");
-    break; 
-  case CYW43_LINK_FAIL:
-    printf("\nCYW43_LINK_FAIL.\n");                    
-    break;
-  case CYW43_LINK_NONET:
-    printf("\nCYW43_LINK_NONET.\n");                    
-    break;    
-  case CYW43_LINK_BADAUTH:
-    printf("\nCYW43_LINK_BADAUTH.\n");                   
-    break;       
-  default:
-    break;
-  };
-}
 //-SETUPINFO-----------------------------------
 static void SetupInfo(){
   //ADC READS
@@ -1327,26 +1126,43 @@ void __no_inline_not_in_flash_func(TimeoutControl)(MQTT_CLIENT_T *stateM){
     StartingSEC=Segundos;
   }
 }
+//-RECONNECT LOOP----------
+void Reconnect_Loop(){
+  printf("\n------- LOOP WIFI ERROR -------\n");
+  Wifi.wifiConn(true); 
+  mqttdone=false;
+  mqttproceso=false;
+  ntpproceso = false;
+  state->dns_request_sent = false;
+  dhtdone=false;  
+  bmpdone=false;
+  ldrdone=false;   
+  inadone=false;     
+  serialdone=false;   
+}
 
 //-SLEEP-------------------------------------
-void __no_inline_not_in_flash_func(Sleep)(MQTT_CLIENT_T *stateM){
-  if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){    
-    Wifi_Off(stateM);                
+void __no_inline_not_in_flash_func(Sleep)(MQTT_CLIENT_T* stateM){
+  if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
+    mqtt_disconnect(stateM->mqtt_client);  
+    Wifi.wifiOff();                
     //-SLEEPING--
-    #if DEBUG 
-      printf("-Sleeping...\n");
+    #if DEBUG
+      RTC();
+      execTime(); 
+      printf("\n-Sleeping... RTC:%02i/%02i %02i:%02i:%02i T:%02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
       sleep_ms(SLEEPTIME*1000);
-      printf("-Awaking...\n");
+      RTC();
+      execTime();
+      printf("\n-Awaking... RTC:%02i/%02i %02i:%02i:%02i T:%02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
     #else
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,SLEEPTIME);
       recover_from_sleep();
     #endif
-    //-SLEEP DONE--  
-    #if DEBUG  
-      printf("-WiFi chip switched ON!\n");  
-    #endif 
-    wifi_Conn(false);        
+    //-SLEEP DONE--      
+    Wifi.wifiConn(false); 
+    RTC();     
   } 
 }
 //-------------- END FUNC. --------------------
@@ -1374,7 +1190,7 @@ int __no_inline_not_in_flash_func(main)() {
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
-  wifi_Conn(false);
+  Wifi.wifiConn(false);
   ina219Setup(); 
   bmp280setup();    
   NTPSetup();    
@@ -1408,8 +1224,7 @@ int __no_inline_not_in_flash_func(main)() {
       TimeoutControl(stateM);
       Sleep(stateM);      
     }
-    printf("\n------- LOOP WIFI ERROR -------\n");
-    wifi_Conn(true);    
+    Reconnect_Loop();
   }
   cyw43_arch_deinit();     
   return 0;
