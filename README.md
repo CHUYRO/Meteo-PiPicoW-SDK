@@ -1,4 +1,4 @@
-# Meteo-PiPicoW-SDK(WIP)
+# Meteo-PiPicoW-SDK
 
 Atmospheric variables control based on Pi-Pico W powered by battery(4xAA NiMh).
 
@@ -50,7 +50,7 @@ Extra:
 
 TO DO: 
 
--Some code cleanup  needed. Mix of C/C++ needs to be rearranged.
+-Some code cleanup  needed. Mix of C/C++ needs to be rearranged(-dht22 lib).
 
 -Test Li-Ion battery instead of 4xAA NiMh.
 
