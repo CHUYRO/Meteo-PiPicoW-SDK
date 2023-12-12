@@ -18,7 +18,7 @@
 #include "hardware/structs/scb.h"
 #include "hardware/spi.h"
 
-#include <ina219.h>
+#include <ina219.hpp>
 #include <dht22.h>
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
