@@ -1,0 +1,12 @@
+[submodule "include/wifiLib"]
+	path = include/wifiLib
+	url = https://github.com/CHUYRO/wifiLib.git
+[submodule "include/ina219"]
+	path = include/ina219
+	url = https://github.com/CHUYRO/ina219.git
+[submodule "include/bmp280"]
+	path = include/bmp280
+	url = https://github.com/CHUYRO/bmp280.git
+[submodule "include/dht22"]
+	path = include/dht22
+	url = https://github.com/CHUYRO/dht22.git
