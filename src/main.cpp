@@ -23,7 +23,7 @@
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
 
-#define DEBUG true 
+#define DEBUG false 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -46,7 +46,7 @@
   #define SYS_KHZ (125 * 1000)  
 #endif
 
-//---------- GLOBAL ----------
+//---------- GLOBAL ---------- 
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 
@@ -528,7 +528,7 @@ void measure_freqs() {
 }
 
 //-LDR---------------------------------------
-void __no_inline_not_in_flash_func(LDRLoop)() {
+void LDRLoop() {
   if(ldrdone==false){
     adc_init();        
     adc_gpio_init(27);        
@@ -547,7 +547,7 @@ void __no_inline_not_in_flash_func(LDRLoop)() {
 }
 
 //-DHT22------------------------------------
-void __no_inline_not_in_flash_func(dht22)() {
+void dht22() {
   if(dhtdone==false && SegundoRawDHT22+(uint64_t)2 < Segundos){
     SegundoRawDHT22=Segundos;
     dht_init(&dht, DHT_MODEL, pio0, DATA_PIN, true);
@@ -575,7 +575,7 @@ void ina219Setup(){
   i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
 
-void __no_inline_not_in_flash_func(LoopINA219)() {
+void LoopINA219() {
   if(inadone==false){   
     i.wake();
     busvoltage = i.voltage();
@@ -654,7 +654,7 @@ void bmp280setup() {
   }
   sleep_ms(10);
 } 
-void __no_inline_not_in_flash_func(bmp280loop)() {
+void bmp280loop() {
   if(bmpdone==false && SegundosRawBMP + (uint64_t)1 < Segundos){
     if(bmp280.readForChipID()!=0){
       bmpdone=true;
@@ -678,7 +678,7 @@ void __no_inline_not_in_flash_func(bmp280loop)() {
   }
 } 
 
-void __no_inline_not_in_flash_func(MedGen)(){
+void MedGen(){
   LDRLoop();      
   bmp280loop();
   dht22();
@@ -922,7 +922,7 @@ static void SetupInfo(){
 }
 
 //-SERIALINFO-----------------------------------
-int __no_inline_not_in_flash_func(power_voltage)(float *voltage_result) {
+int power_voltage(float *voltage_result) {
   cyw43_thread_enter();
   // setup adc
   adc_init();
@@ -941,7 +941,7 @@ int __no_inline_not_in_flash_func(power_voltage)(float *voltage_result) {
   return PICO_OK;
 }
 
-static void __no_inline_not_in_flash_func(serialInfo)(bool old_voltage){
+static void serialInfo(bool old_voltage){
   if(serialdone==false){         
     //-TEMP
     adc_set_temp_sensor_enabled(true);
@@ -1147,7 +1147,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 //-RECONNECT LOOP----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
-  Wifi.wifiConn(true); 
+  Wifi.wifiConn(true,false); 
   mqttdone=false;
   mqttproceso=false;
   ntpproceso = false;
@@ -1179,12 +1179,21 @@ void Sleep(MQTT_CLIENT_T* stateM){
       recover_from_sleep();
     #endif
     //-SLEEP DONE--      
-    Wifi.wifiConn(false); 
+    Wifi.wifiConn(false,false);
+    mqttdone=false;
+    mqttproceso=false;
+    ntpproceso = false;
+    state->dns_request_sent = false;
+    dhtdone=false;  
+    bmpdone=false;
+    ldrdone=false;   
+    inadone=false;     
+    serialdone=false;   
     RTC();     
   } 
 }
 //-------------- END FUNC. --------------------
-int __no_inline_not_in_flash_func(main)() {    
+int main() {    
   //- SYSTEM SETUP -----------
   //vreg_set_voltage(VREG_VOLTAGE_0_90);
   sleep_ms(10); 
@@ -1208,7 +1217,7 @@ int __no_inline_not_in_flash_func(main)() {
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
-  Wifi.wifiConn(false);
+  Wifi.wifiConn(false,true);
   ina219Setup(); 
   bmp280setup();    
   NTPSetup();    

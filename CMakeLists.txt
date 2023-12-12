@@ -18,7 +18,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(PICO_CXX_ENABLE_RTTI 0)
 set(PICO_CXX_ENABLE_EXCEPTIONS 0)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS 0)
 
 if (PICO_SDK_VERSION_STRING VERSION_LESS "1.5.1")
     message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.5.1 (or later) required!. Your version is ${PICO_SDK_VERSION_STRING}")
@@ -47,7 +47,7 @@ target_compile_definitions(main PRIVATE
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
         PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\" 
-        #NDEBUG=0  #LWIP debug logging, 1:disable lwipopts.h -- 0:enable lwipopts.h ??
+        #NDEBUG=0  #LWIP debug logging, 1:disable lwipopts.h -- 0:enable lwipopts.h testing...
         )
 
 target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value) 
@@ -63,10 +63,10 @@ target_link_libraries(main
         hardware_rtc
         hardware_adc 
         hardware_sleep  
-        hardware_spi         
-        bmp280      
+        hardware_spi 
+        ina219      
         dht22
-        ina219   
+        bmp280  
         wifiLib
         )
 
