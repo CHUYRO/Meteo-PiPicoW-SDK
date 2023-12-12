@@ -29,7 +29,7 @@
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGINA219 false
-  #define SLEEPTIME 10
+  #define SLEEPTIME 30
   #include "tusb.h"
 #else
   #define DEBUGBMP280 false
@@ -47,7 +47,6 @@
 #endif
 
 //---------- GLOBAL ----------
-
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 
@@ -615,7 +614,9 @@ void __no_inline_not_in_flash_func(LoopINA219)() {
 }
 //-BMP280------------------------------------
 void bmp280setup() {
-  printf("\n-BMP280 SETUP");   
+  #if DEBUGBMP280
+    printf("\n-BMP280 SETUP"); 
+  #endif  
   spi_init(spi0, 500000);                     //Baudrate 0.5Mhz - couldn't find in datasheet
   spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, (spi_order_t)0); //SPI acceptable 00 and 11 configuration
   gpio_set_function(MOSI, GPIO_FUNC_SPI);     //Mapping GPIO
@@ -628,14 +629,29 @@ void bmp280setup() {
   spi_write_blocking(spi0, &datachipid, 1);
   spi_read_blocking(spi0, 0, &chipID, 1);
   sleep_ms(10);
-  if(!bmp280.setPowerMode(BMP280::PowerMode::Forced, true)){printf("\n-Error PowerMode\n");}else{printf("\n-Power mode: %i\n", bmp280.readPowerMode());}
+  if(!bmp280.setPowerMode(BMP280::PowerMode::Forced, true)){printf("\n-Error PowerMode\n");}
+  else{
+    #if DEBUGBMP280
+      printf("\n-Power mode: %i\n", bmp280.readPowerMode());
+    #endif
+  }
   sleep_ms(10);
   //(Temperature oversampling x1, pressure oversampling x1 0x27->0b00100111)
   if(!bmp280.setRegister(0xF4, 0b00100111, true)){printf("\n-Error Register\n");} 
   sleep_ms(10);
-  if(!bmp280.setOversampling(BMP280::Temperature, (uint8_t)1, true)){printf("\n-Error OVS TEMP\n");}{printf("-Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));}
+  if(!bmp280.setOversampling(BMP280::Temperature, (uint8_t)1, true)){printf("\n-Error OVS TEMP\n");}
+  else{
+    #if DEBUGBMP280
+      printf("-Temperature oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Temperature));
+    #endif
+  }
   sleep_ms(10);
-  if(!bmp280.setOversampling(BMP280::Pressure, (uint8_t)1, true)){printf("\n-Error OVS PRESS\n");}else{printf("-Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));}
+  if(!bmp280.setOversampling(BMP280::Pressure, (uint8_t)1, true)){printf("\n-Error OVS PRESS\n");}
+  else{
+    #if DEBUGBMP280
+      printf("-Pressure oversampling: %i\n", bmp280.readOversampling(BMP280::Type::Pressure));
+    #endif
+  }
   sleep_ms(10);
 } 
 void __no_inline_not_in_flash_func(bmp280loop)() {
@@ -852,8 +868,10 @@ static void NTPSetup(){
   else{
     udp_recv(state->ntp_pcb, ntp_recv, state);
   } 
-  rtc_init(); 
-  printf("\n-NTP SETUP\n");  
+  rtc_init();
+  #if DEBUG 
+    printf("\n-NTP SETUP\n");  
+  #endif
 }
 
 void __no_inline_not_in_flash_func(NTPLoop)(){    
@@ -954,7 +972,7 @@ static void __no_inline_not_in_flash_func(serialInfo)(bool old_voltage){
 }
 
 //-TIMEOUT CONTROL-------------------(WIP)
-void __no_inline_not_in_flash_func(TimeoutControl)(MQTT_CLIENT_T *stateM){
+void TimeoutControl(MQTT_CLIENT_T *stateM){
   execTime();
   if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true && ntpupdated == true && ntpproceso == false){
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -1142,7 +1160,7 @@ void Reconnect_Loop(){
 }
 
 //-SLEEP-------------------------------------
-void __no_inline_not_in_flash_func(Sleep)(MQTT_CLIENT_T* stateM){
+void Sleep(MQTT_CLIENT_T* stateM){
   if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
     mqtt_disconnect(stateM->mqtt_client);  
     Wifi.wifiOff();                
