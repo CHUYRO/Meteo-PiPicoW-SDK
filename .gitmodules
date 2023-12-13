@@ -10,3 +10,6 @@
 [submodule "include/dht22"]
 	path = include/dht22
 	url = https://github.com/CHUYRO/dht22.git
+[submodule "include/--force"]
+	path = include/--force
+	url = https://github.com/CHUYRO/wifiLib.git
