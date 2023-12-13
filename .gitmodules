@@ -1,0 +1,3 @@
+[submodule "include/wifiLib"]
+	path = include/wifiLib
+	url = https://github.com/CHUYRO/wifiLib.git
