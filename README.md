@@ -18,7 +18,7 @@ In short, each cycle is composed by this actions:
 
 1.-Wakes up and connects to saved WiFi, after WiFi link is up it takes measurements and sends it to DB(6-9 seconds of activity, depends on signal strengh).
 
-2.-Then checks if everything ok. If ok turns off WiFi chip and deep sleeps keeping only RTC online to wake up when we want(by default 180 seconds of deep sleep).
+2.-Then checks if everything ok. If ok turns off WiFi chip and deep sleeps keeping only RTC online to wake up when set(by default every 180 seconds).
 
 3.-Back to 1.
 
@@ -26,11 +26,11 @@ All welded by me so room for improvement...
 
 Sensors: 
 
--DHT22: temperature and humidity control.
+-DHT22: temperature and humidity.
 
--BMP280: atmospheric pressure and temperature control.
+-BMP280: atmospheric pressure and temperature.
 
--INA219: measures voltage and current of battery pack.
+-INA219: measures voltage and current.
 
 -LDR for simple measurement of light conditions.
 
