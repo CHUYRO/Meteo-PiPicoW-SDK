@@ -2,9 +2,9 @@
 
 Atmospheric variables control based on Pi-Pico W powered by battery(4xAA NiMh).
 
-Raw data sent every 186-189 seconds to Thingspeak db. Data sent by mqtt protocol. 
+Raw data sent every 186-189 seconds to Thingspeak db. Data sent by MQTT. 
 
-Numerical analysis on raw data done in Thingspeak channel. 
+Analysis on raw data done in Thingspeak channel via MATLAB. 
 
 Link to raw data channel: https://thingspeak.com/channels/1713237
 
@@ -12,8 +12,6 @@ Link to processed data channel: https://thingspeak.com/channels/1725298
 
 By default 180 seconds of deep sleep with ≈2mA consumption and 6-9 seconds of activity with 50-60mA consumption.
 NTP client and RTC used to know when to wake up, no deep sleep until NTP sets RTC.
-This low power consumption can only be achieved by deep sleeping PicoW after sending data to DB in 186-189 seconds cycles.
-
 In short, each cycle is composed by this actions:
 
 1.-Wakes up and connects to saved WiFi, after WiFi link is up it takes measurements and sends it to DB(6-9 seconds of activity, depends on signal strengh).
@@ -30,7 +28,7 @@ Sensors:
 
 -BMP280: atmospheric pressure and temperature.
 
--INA219: measures voltage and current.
+-INA219: power control.
 
 -LDR for simple measurement of light conditions.
 
@@ -42,9 +40,9 @@ Battery pack:
 
 Extra:
 
--Can be downclocked all the way down to 50-60MHz.
+-Over/Underclock control.
 
--Wifi scan and connection/reconnection logic if WiFi link down.
+-Wifi scan and connection/reconnection logic to set ssids.
 
 -NTP time check/update every 3 days in order to avoid RTC time drift.
 

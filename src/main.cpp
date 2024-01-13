@@ -1236,9 +1236,8 @@ int main() {
   printf("\n-SETUP OK! -T.Wait: %ims -T.Setup: %ims -T.Total: %ims\n",TiempoWait/1000,TiempoLoop/1000,(TiempoWait+TiempoLoop)/1000);    
   //- END SETUP --------------     
   printf("\n------------ LOOP -------------\n");   
-  //- START LOOP -------------
-  while (true) {
-    execTime();
+  //- LOOP -------------
+  while(true){
     cyw43_arch_poll();    
     while(cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) == CYW43_LINK_UP){    
       cyw43_arch_poll(); 

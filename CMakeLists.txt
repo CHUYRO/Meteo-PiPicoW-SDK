@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15...3.27)
+cmake_minimum_required(VERSION 3.20)
 
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
         include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
@@ -42,18 +42,21 @@ add_executable(main
         )
 
 target_compile_definitions(main PRIVATE
-        WIFI_SSID=\"${WIFI_SSID}\"
-        WIFI_PASSWORD=\"${WIFI_PASSWORD}\"  
+        WIFI_SSID1=\"${WIFI_SSID1}\"
+        WIFI_PASSWORD1=\"${WIFI_PASSWORD1}\"
+        WIFI_SSID2=\"${WIFI_SSID2}\"
+        WIFI_PASSWORD2=\"${WIFI_PASSWORD2}\"  
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
         PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\" 
-        #NDEBUG=0  #LWIP debug logging, 1:disable lwipopts.h -- 0:enable lwipopts.h testing...
+        #NDEBUG=0  # LWIP debug logging disabled
         )
 
 target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
 
 target_include_directories(main PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/lwip
         )
 
 target_link_libraries(main        
@@ -70,7 +73,7 @@ target_link_libraries(main
         wifiLib
         )
 
-#Print memory usage
+# Print memory usage
 add_custom_command(TARGET main POST_BUILD
 COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/main.elf
 VERBATIM)        
