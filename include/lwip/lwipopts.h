@@ -5,7 +5,6 @@
 #ifndef NO_SYS
 #define NO_SYS                      1
 #endif
-#define NO_SYS 1
 // allow override in some examples
 #ifndef LWIP_SOCKET
 #define LWIP_SOCKET                 0

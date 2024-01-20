@@ -52,7 +52,7 @@ target_compile_definitions(main PRIVATE
         #NDEBUG=0  # LWIP debug logging disabled
         )
 
-target_compile_options(main PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
+target_compile_options(main PRIVATE -Wall -Werror -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
 
 target_include_directories(main PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
@@ -61,7 +61,7 @@ target_include_directories(main PRIVATE
 
 target_link_libraries(main        
         pico_stdlib        
-        pico_cyw43_arch_lwip_poll 
+        pico_cyw43_arch_lwip_threadsafe_background
         pico_lwip_mqtt
         hardware_rtc
         hardware_adc 
