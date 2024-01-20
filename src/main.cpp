@@ -49,6 +49,7 @@
 #endif
 
 //---------- GLOBAL ---------- 
+
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 
@@ -503,7 +504,7 @@ void recover_from_sleep(){
 
   //reset clocks
   clocks_init();
-  //try to reinit usb - NOT working... after sleep usb down
+  //try to reinit usb - NOT working... after sleep usb is down.
   //stdio_init_all();
 
   return;

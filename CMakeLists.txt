@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
+set(NAME main) #Name your project/executable here!
+
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
         include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
 else()
@@ -37,11 +39,11 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/dht22)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/bmp280)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/wifiLib)
 
-add_executable(main 
-        src/main.cpp  
+add_executable(${NAME} 
+        src/${NAME}.cpp  
         )
 
-target_compile_definitions(main PRIVATE
+target_compile_definitions(${NAME} PRIVATE
         WIFI_SSID1=\"${WIFI_SSID1}\"
         WIFI_PASSWORD1=\"${WIFI_PASSWORD1}\"
         WIFI_SSID2=\"${WIFI_SSID2}\"
@@ -52,14 +54,14 @@ target_compile_definitions(main PRIVATE
         #NDEBUG=0  # LWIP debug logging disabled
         )
 
-target_compile_options(main PRIVATE -Wall -Werror -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
+target_compile_options(${NAME} PRIVATE -Wall -Werror -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
 
-target_include_directories(main PRIVATE
+target_include_directories(${NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include/lwip
         )
 
-target_link_libraries(main        
+target_link_libraries(${NAME}        
         pico_stdlib        
         pico_cyw43_arch_lwip_threadsafe_background
         pico_lwip_mqtt
@@ -74,14 +76,14 @@ target_link_libraries(main
         )
 
 # Print memory usage
-add_custom_command(TARGET main POST_BUILD
-COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/main.elf
+add_custom_command(TARGET ${NAME} POST_BUILD
+COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/${NAME}.elf
 VERBATIM)        
 string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,--print-memory-usage")   
 
 # enable usb output, disable uart output
-pico_enable_stdio_usb(main 1)
-pico_enable_stdio_uart(main 0)   
+pico_enable_stdio_usb(${NAME} 1)
+pico_enable_stdio_uart(${NAME} 0)   
 
 # create map/bin/hex/uf2 files.         
-pico_add_extra_outputs(main)
+pico_add_extra_outputs(${NAME})
