@@ -1024,7 +1024,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 //-RECONNECT LOOP----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
-  Wifi.wifiConn(true,true); 
+  Wifi.wifiConn(false,true,5); 
   mqttdone=false;
   mqttproceso=false;
   ntpproceso = false;
@@ -1057,7 +1057,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
       recover_from_sleep();
     #endif
     //-SLEEP DONE--      
-    Wifi.wifiConn(false,false);
+    Wifi.wifiConn(false,false,5);
     mqttdone=false;
     mqttproceso=false;
     ntpproceso = false;
@@ -1094,7 +1094,7 @@ int main() {
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
-  Wifi.wifiConn(false,true);
+  Wifi.wifiConn(false,true,5);
   ina219Setup(); 
   bmp280setup();    
   NTPSetup();    
