@@ -11,17 +11,19 @@
 #include "lwip/dns.h"
 
 #include "hardware/adc.h"
-//#include "hardware/vreg.h"
+#include "hardware/vreg.h"
 #include "hardware/rtc.h"
 #include "hardware/clocks.h"
 #include "hardware/rosc.h"
 #include "hardware/structs/scb.h"
-#include "hardware/spi.h"
 
 #include <ina219.hpp>
 #include <dht22.h>
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
+
+#include "lwip/apps/sntp.h"
+#include "hardware/rtc.h"
 
 #define DEBUG false // debug logic
 
@@ -30,6 +32,7 @@
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGINA219 false
+  #define DEBUGRTC false
   #define SLEEPTIME 30
   #include "tusb.h"
 #else
@@ -37,6 +40,7 @@
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGINA219 false
+  #define DEBUGRTC false
   #define SLEEPTIME 180
 #endif
 
@@ -52,6 +56,7 @@
 
 //-RTC-------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
+bool night = false;
 
 //-LDR--------------
 float ldrVal = -1, ldrValRaw = 0;
@@ -81,7 +86,7 @@ float MAX_EXPECTED_AMPS = 3.2;
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
 
 //-VSYS----------------
-float old_voltage = 0, voltage = 0, adc = 0, tempC = 0;
+float voltage = 0, adc = 0, tempC = 0;
 int voltage_return = 0;
 const float conversionFactor = 3.3f / (1 << 12);
 #ifndef PICO_POWER_SAMPLE_COUNT
@@ -92,8 +97,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 //-TIME------------------
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0, SegundosRawBMP = 0;
 unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0, MinutoComienzo = 0, HoraComienzo = 0, SegundoComienzo = 0, DiaComienzo = 0, MesComienzo = 0;
-bool movida = false, InitTimeGet = false;
-long int movidaDebug = 0, minutos = 0, hora = 0, segundos = 0, ErrorMQTT = 0, ErrorNTP = 0, Timeout = 0;
+long int ErrorMQTT = 0, Timeout = 0;
 absolute_time_t RTC_timer = nil_time;
 absolute_time_t execT_timer = nil_time;
 absolute_time_t timeoutControl_timer = nil_time;
@@ -101,32 +105,9 @@ absolute_time_t timeoutControl_timer = nil_time;
 //-WIFI-----------------
 wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 
-//-NTP------------------
-typedef struct NTP_T_ {
-  ip_addr_t ntp_server_address;
-  bool dns_request_sent;
-  struct udp_pcb *ntp_pcb;
-  absolute_time_t ntp_test_time;
-  alarm_id_t ntp_resend_alarm;
-} NTP_T;
-#define NTP_SERVER "0.es.pool.ntp.org" 
-#define NTP_MSG_LEN 48
-#define NTP_PORT 123 
-#define NTP_DELTA 2208988800 // seconds between 1 Jan 1900 and 1 Jan 1970
-datetime_t datetimeNTP = {  
-  .year = 0,
-  .month = 0,
-  .day = 0,
-  .dotw = 0,
-  .hour = 0,
-  .min = 0,
-  .sec = 0
-};
-NTP_T *state = (NTP_T *)calloc(1, sizeof(NTP_T));
-
 //-SLEEP------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
-bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, ntpupdated = false, mqttproceso = false, ntpproceso = false;
+bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, mqttproceso = false;
 
 //-MQTT---------------
 const char *ChannelID = "1713237";
@@ -177,93 +158,25 @@ void __no_inline_not_in_flash_func(execTime)(){
   }   
 }
 
-//-RTC-----------------------------------------------------------------
-//-TESTING RTC THINGS--
-static bool __no_inline_not_in_flash_func(valid_datetimeLOL)(datetime_t *t) {
-  // Valid ranges taken from RTC doc. Note when setting an RTC alarm
-  // these values are allowed to be -1 to say "don't match this value"
-  if (!(t->year >= 0 && t->year <= 4095)) return false;
-  if (!(t->month >= 1 && t->month <= 12)) return false;
-  if (!(t->day >= 1 && t->day <= 31)) return false;
-  if (!(t->dotw >= 0 && t->dotw <= 6)) return false;
-  if (!(t->hour >= 0 && t->hour <= 23)) return false;
-  if (!(t->min >= 0 && t->min <= 59)) return false;
-  if (!(t->sec >= 0 && t->sec <= 59)) return false;
-  return true;
-}
-bool __no_inline_not_in_flash_func(rtc_set_datetimeLOL)(datetime_t *t) {
-  if (!valid_datetimeLOL(t)) {
-    return false;
-  }
 
-  // Disable RTC
-  rtc_hw->ctrl = 0;
-  // Wait while it is still active
-  while (rtc_running()) {
-    tight_loop_contents();
-  } 
-
-  // Write to setup registers
-  rtc_hw->setup_0 = (((uint32_t)t->year)  << RTC_SETUP_0_YEAR_LSB ) |
-      (((uint32_t)t->month) << RTC_SETUP_0_MONTH_LSB) |
-      (((uint32_t)t->day)   << RTC_SETUP_0_DAY_LSB);
-  rtc_hw->setup_1 = (((uint32_t)t->dotw)  << RTC_SETUP_1_DOTW_LSB) |
-      (((uint32_t)t->hour)  << RTC_SETUP_1_HOUR_LSB) |
-      (((uint32_t)t->min)   << RTC_SETUP_1_MIN_LSB)  |
-      (((uint32_t)t->sec)   << RTC_SETUP_1_SEC_LSB);
-
-  // Load setup values into rtc clock domain
-  rtc_hw->ctrl = RTC_CTRL_LOAD_BITS;
-
-  // Enable RTC and wait for it to be running
-  rtc_hw->ctrl = RTC_CTRL_RTC_ENABLE_BITS;
-  while (!rtc_running()) {
-    tight_loop_contents();
-  }
-
-  busy_wait_us(64);
-  // Reload it again on the fly to make it right
-  rtc_hw->ctrl = RTC_CTRL_LOAD_BITS | RTC_CTRL_RTC_ENABLE_BITS;
-  busy_wait_us(64); 
-
-  return true;
-}
-
-void __no_inline_not_in_flash_func(setTimeRTC)(){       
-  if(InitTimeGet==true){
-    datetimeNTP = {
-      .year = (int16_t) (año),
-      .month = (int8_t) (mes),
-      .day = (int8_t) (dianum),
-      .dotw = (int8_t) (diaint),
-      .hour = (int8_t) (hora),
-      .min = (int8_t) (minutos),
-      .sec = (int8_t) (segundos)
-    };        
-    if(rtc_set_datetimeLOL(&datetimeNTP)==true){      
-      #if DEBUG  
-        execTime();         
-        printf("\n-RTC(set): %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",datetimeNTP.hour,datetimeNTP.min,datetimeNTP.sec,MinutosTot,SegundosTot,MillisTot);
-      #endif 
-      ntpupdated=true; 
-      ntpproceso=false;                           
-    }
-    else{
-      printf("Horas BAD!\n");
-    }                           
-  }         
-}
-
-void __no_inline_not_in_flash_func(RTC)(){
+void __no_inline_not_in_flash_func(RTC)(){  
   if (absolute_time_diff_us(get_absolute_time(), RTC_timer) < 0) {
+    datetime_t datetimeNTP;
     rtc_get_datetime(&datetimeNTP);
-    SegundosRTC = datetimeNTP.sec; 
-    MinutosRTC = datetimeNTP.min;
-    HorasRTC = datetimeNTP.hour;  
-    DiaRTC = datetimeNTP.day;
-    MesRTC = datetimeNTP.month; 
-    DiaWRTC = datetimeNTP.dotw;
-    AñoRTC = datetimeNTP.year;      
+    if(datetimeNTP.sec != -1){
+      SegundosRTC = datetimeNTP.sec;
+      MinutosRTC = datetimeNTP.min;
+      HorasRTC = datetimeNTP.hour;
+      DiaRTC = datetimeNTP.day;
+      MesRTC = datetimeNTP.month;
+      DiaWRTC = datetimeNTP.dotw;
+      AñoRTC = datetimeNTP.year;
+      #if DEBUGRTC     
+      execTime();             
+      printf("\n-RTC(get):%02i:%02i:%02i T:%02lli:%02lli:%03lli\n",HorasRTC,MinutosRTC,SegundosRTC,MinutosTot,SegundosTot,MillisTot); 
+      #endif 
+      (HorasRTC >= 3 && HorasRTC <= 8) ? night = true : night = false;
+    }
     RTC_timer = make_timeout_time_us(100000);  //100ms 
   }    
 }
@@ -303,7 +216,9 @@ void run_dns_lookup(MQTT_CLIENT_T *stateM) {
   }
 
   while (stateM->remote_addr.addr == 0 && Timeout <= 15000) {
-    //cyw43_arch_poll();
+    #if PICO_CYW43_ARCH_POLL
+    cyw43_arch_poll();
+    #endif 
     Timeout++;  
     busy_wait_ms(1);        
   }
@@ -411,13 +326,13 @@ static void sleep_callback(void) {
 }
 
 static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {  
-  uint secondTO = second_to_sleep_to + (uint)(datetimeNTP.sec);
-  uint minuteTO = minute_to_sleep_to + (uint)(datetimeNTP.min);
-  uint horaTO = datetimeNTP.hour;
-  uint diaTO = datetimeNTP.day;
-  uint diaWTO = datetimeNTP.dotw;
-  uint mesTO = datetimeNTP.month;
-  uint añoTO = datetimeNTP.year;
+  uint secondTO = second_to_sleep_to + SegundosRTC;
+  uint minuteTO = minute_to_sleep_to + MinutosRTC;
+  uint horaTO = HorasRTC;
+  uint diaTO = DiaRTC;
+  uint diaWTO = DiaWRTC;
+  uint mesTO = MesRTC;
+  uint añoTO = AñoRTC;
 
   while(secondTO>=60 || minuteTO>=60){
     if(secondTO>=60){
@@ -702,181 +617,6 @@ long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-//-NTP--------------------------------------
-#define HOURS_IN_DAY 24
-
-enum Days { SUN, MON, TUE, WED, THU, FRI, SAT };
-enum Months { JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC };
-
-int adjustHour(int currentHour, int adjustment) {
-  int adjustedHour = (currentHour + adjustment) % HOURS_IN_DAY;
-  return (adjustedHour < 0) ? HOURS_IN_DAY - 1 : adjustedHour;
-}
-
-unsigned int daysInMonth(int month, int year) {
-  if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
-    const int days[12] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    return days[month - 1];
-  } else {
-    const int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    return days[month - 1];
-  }
-}
-
-static void ntp_result(NTP_T* state, int status, time_t *result) {    
-  if (status == 0 && result) {
-    struct tm *utc = gmtime(result);        
-    if(segundos != utc->tm_sec || minutos != utc->tm_min){
-      segundos = utc->tm_sec;            
-      minutos = utc->tm_min;
-      dianum = utc->tm_mday;
-      mes = utc->tm_mon + 1;
-      año = 1900 + utc->tm_year;
-
-      if (debugControlDia < 1) {
-        diaint = utc->tm_wday;
-        debugControlDia = 1;
-      }
-      if (mes == 13) {
-        mes = 1;
-      }
-      if (mes >= 11 || mes < 4) {
-        hora = adjustHour(utc->tm_hour, 1);
-      } else if (mes >= 4 && mes < 11) {
-        hora = adjustHour(utc->tm_hour, 2);
-      }
-      if (hora == 0 || hora == 1) {
-        if (movidaDebug == 0) {
-          movida = true;
-          movidaDebug = 1;
-        }
-        if (movida == true) {
-          diaint += 1;
-          movida = false;
-        }
-        dianum += 1;
-        if (dianum > daysInMonth(mes, año)) {
-          dianum = 1;
-          mes++;
-        }
-        if (diaint > 6) {
-           diaint = 0;
-        }
-      }      
-      #if DEBUG 
-        execTime();             
-        printf("\n-NTP: %02i/%02i/%04i %02i:%02i:%02i T:%02lli:%02lli:%03lli\n",dianum, mes, utc->tm_year + 1900, hora, minutos, segundos, MinutosTot, SegundosTot, MillisTot);  
-      #endif                        
-      if(InitTimeGet != true && año != 1900){
-        SegundoComienzo=segundos;
-        MinutoComienzo=minutos;
-        HoraComienzo=hora;
-        DiaComienzo=dianum;
-        MesComienzo=mes;
-        InitTimeGet = true;
-        #if DEBUG
-          printf("\n-FECHA INIT.: %02i/%02i %02i:%02i:%02i\n",DiaComienzo,MesComienzo,HoraComienzo,MinutoComienzo,SegundoComienzo);
-        #endif 
-      }  
-      setTimeRTC();
-    }                 
-  }
-  else if(status != 0 && !result && ntpproceso == false){        
-    ntpupdated=false;
-    ErrorNTP++;
-  } 
-  state->dns_request_sent = false;
-}
-
-static void ntp_request(){
-  cyw43_arch_lwip_begin();
-  struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, NTP_MSG_LEN, PBUF_RAM);
-  uint8_t *req = (uint8_t *) p->payload;
-  memset(req, 0, NTP_MSG_LEN);
-  req[0] = 0x1b;
-  udp_sendto(state->ntp_pcb, p, &state->ntp_server_address, NTP_PORT);
-  pbuf_free(p);
-  cyw43_arch_lwip_end();
-}
-
-static void ntp_dns_found(const char *hostname, const ip_addr_t *ipaddr, void *arg){
- NTP_T *state = (NTP_T*)arg;
-  if (ipaddr) {
-    state->ntp_server_address = *ipaddr;
-    //printf("\n-NTP DNS address: %s\n", ipaddr_ntoa(ipaddr));
-    ntp_request();
-  } else {
-    //printf("\n-NTP DNS request failed...Not found\n");
-    ntp_result(state, -1, NULL);
-  }
-}
-
-static void ntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
-  NTP_T *state = (NTP_T*)arg;
-  uint8_t mode = pbuf_get_at(p, 0) & 0x7;
-  uint8_t stratum = pbuf_get_at(p, 1);
-
-  // Check the result
-  if (ip_addr_cmp(addr, &state->ntp_server_address) && port == NTP_PORT && p->tot_len == NTP_MSG_LEN &&
-    mode == 0x4 && stratum != 0) {
-    uint8_t seconds_buf[4] = {0};
-    pbuf_copy_partial(p, seconds_buf, sizeof(seconds_buf), 40);
-    uint32_t seconds_since_1900 = seconds_buf[0] << 24 | seconds_buf[1] << 16 | seconds_buf[2] << 8 | seconds_buf[3];
-    uint32_t seconds_since_1970 = seconds_since_1900 - NTP_DELTA;
-    time_t epoch = seconds_since_1970;
-    ntp_result(state, 0, &epoch);
-  } else {
-    //printf("\ninvalid NTP response\n");
-    ntp_result(state, -1, NULL);
-  }
-  pbuf_free(p);
-}
-
-static void NTPSetup(){
-  if (!state) {
-    printf("failed to allocate state\n");        
-  }
-  state->ntp_pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
-  if (!state->ntp_pcb) {
-    printf("failed to create pcb\n");
-    free(state);   
-    ErrorNTP++;     
-  }
-  else{
-    udp_recv(state->ntp_pcb, ntp_recv, state);
-  } 
-  rtc_init();
-  #if DEBUG 
-    printf("\n-NTP SETUP\n");  
-  #endif
-}
-
-void __no_inline_not_in_flash_func(NTPLoop)(){    
-  if(Horas >= ntpHoras+(uint64_t)(3)){
-    ntpupdated = false;
-    ntpproceso = false;
-    ntpHoras = Horas;        
-  } 
-  if(ntpupdated == false && ntpproceso == false){ 
-    ntpproceso = true;
-    cyw43_arch_lwip_begin();
-    int err = dns_gethostbyname(NTP_SERVER, &state->ntp_server_address, ntp_dns_found, state);
-    cyw43_arch_lwip_end();
-    //printf("\n-NTP DNS request sent\n");
-    state->dns_request_sent = true;
-    if(err == ERR_OK) {
-      //printf("\n-NTP DNS Cached result: err %i\n",err);
-      ntp_request(); // Cached result
-    }else if (err == ERR_INPROGRESS || err == ERR_OK || err == ERR_ALREADY || err == ERR_ISCONN) { //expect a callback
-      //printf("\n-NTP DNS request expect callback/wait: err %i\n",err);
-    }else if(err != ERR_INPROGRESS && err != ERR_OK && err != ERR_ALREADY && err != ERR_ISCONN){
-      //printf("\n-NTP DNS request ERROR!: err %i\n",err);
-      ntp_result(state, -1, NULL);
-    }
-  }
-  RTC();
-}
-
 //-SETUPINFO-----------------------------------
 static void SetupInfo(){
   //ADC READS
@@ -918,30 +658,21 @@ int power_voltage(float *voltage_result) {
   return PICO_OK;
 }
 
-static void serialInfo(bool old_voltage){
+static void serialInfo(){
   if(serialdone==false){         
     //-TEMP
     adc_set_temp_sensor_enabled(true);
-    // Get voltage
+    // Get pico voltage
     voltage = 0;
     voltage_return = power_voltage(&voltage);
     voltage = floorf(voltage * 100) / 100;
-    // Get power val if it's changed
-    if (old_voltage != voltage) {
-      if (voltage_return == PICO_OK) {
-        //const float min_battery_volts = 3.0f;
-        //const float max_battery_volts = 4.2f;
-        //int percent_val = ((voltage - min_battery_volts) / (max_battery_volts - min_battery_volts)) * 100;
-      }
-      // Also get the temperature
-      adc_select_input(4); 
-      adc = 0;
-      for (size_t i = 0; i < PICO_POWER_SAMPLE_COUNT; i++){
-        adc += (float)adc_read() * conversionFactor;
-      }            
-      tempC = 27.0f - ((adc/PICO_POWER_SAMPLE_COUNT) - 0.706f) / 0.001721f;
-      old_voltage = voltage;            
-    } 
+    // Also get the temperature
+    adc_select_input(4); 
+    adc = 0;
+    for (size_t i = 0; i < PICO_POWER_SAMPLE_COUNT; i++){
+      adc += (float)adc_read() * conversionFactor;
+    }            
+    tempC = 27.0f - ((adc/PICO_POWER_SAMPLE_COUNT) - 0.706f) / 0.001721f; 
     //-TEMP
     adc_set_temp_sensor_enabled(false);  
     serialdone=true;
@@ -949,7 +680,6 @@ static void serialInfo(bool old_voltage){
 }
 
 //-TIMEOUT CONTROL-------------------  
-
 void handleTimeout(const char *timeoutType) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
   sleep_ms(300);
@@ -967,8 +697,8 @@ void handleTimeout(const char *timeoutType) {
   sleep_ms(300);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   printf("\n--- TIMEOUT %s: +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---", timeoutType, Segundos-StartingSEC, Segundos, StartingSEC);
-  printf("\n-NTP %s. MQTT %s. Sensors %s: \n", ntpupdated ? "OK" : "BAD", mqttdone ? "OK" : "BAD", dhtdone && bmpdone && ldrdone && inadone ? "OK" : "BAD");
-  printf("-ntpupdated:%d ntpproceso:%d InitTimeGet:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", ntpupdated, ntpproceso, InitTimeGet, mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
+  printf("\n-MQTT %s. Sensors %s: \n", mqttdone ? "OK" : "BAD", dhtdone && bmpdone && ldrdone && inadone ? "OK" : "BAD");
+  printf("-initDate:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", Wifi.initTime(false), mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
   if(strcmp(timeoutType,"MQTT")==0 || strcmp(timeoutType,"MQTT+SENSORS")==0 || strcmp(timeoutType,"MQTTproceso")==0){
     dhtdone=false;  
     bmpdone=false;
@@ -977,42 +707,19 @@ void handleTimeout(const char *timeoutType) {
     serialdone=false; 
     mqttdone=false;
     mqttproceso=false;      
-  } else if(strcmp(timeoutType,"MQTT+SENSORS+NTP")==0 || strcmp(timeoutType,"NTP")==0){
-    if (strcmp(timeoutType,"MQTT+SENSORS+NTP")==0){
-      dhtdone=false;  
-      bmpdone=false;
-      ldrdone=false;  
-      inadone=false;     
-      serialdone=false; 
-      mqttdone=false;
-      mqttproceso=false; 
-    }
-    ntpupdated=false;
-    ntpproceso=false;
-    state->dns_request_sent = false; 
-    sleep_ms(60000);
   } 
 }
 
 void TimeoutControl(MQTT_CLIENT_T *stateM){
   if (absolute_time_diff_us(get_absolute_time(), timeoutControl_timer) < 0) {
-    if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true && ntpupdated == true && ntpproceso == false){
+    if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){
       handleTimeout("MQTT");
       sleep_ms(3000);
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true) && ntpupdated == true && ntpproceso == false){
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
       handleTimeout("SENSORS"); 
       sleep_ms(60000);  
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true) && ntpupdated == true && ntpproceso == false){
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
       handleTimeout("MQTT+SENSORS"); 
-      sleep_ms(60000);    
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == true && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true && ntpupdated == false && ntpproceso == false){
-      handleTimeout("NTP"); 
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true) && ntpupdated == false && ntpproceso == false){
-      handleTimeout("MQTT+SENSORS+NTP"); 
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && ntpproceso == true){
-      handleTimeout("NTPproceso");
-      ntpproceso=false;
-      StartingSEC=Segundos;
     }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == true){
       handleTimeout("MQTTproceso");   
       StartingSEC=Segundos;
@@ -1027,8 +734,6 @@ void Reconnect_Loop(){
   Wifi.wifiConn(false,true,5); 
   mqttdone=false;
   mqttproceso=false;
-  ntpproceso = false;
-  state->dns_request_sent = false;
   dhtdone=false;  
   bmpdone=false;
   ldrdone=false;   
@@ -1037,11 +742,14 @@ void Reconnect_Loop(){
   sleep_ms(20000);
 }
 
+bool InitTimeGet = false;
+
 //-SLEEP-------------------------------------
 void Sleep(MQTT_CLIENT_T* stateM){
-  if(ntpupdated==true && InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
+  if(InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
     mqtt_disconnect(stateM->mqtt_client);  
-    Wifi.wifiOff();                
+    sntp_stop();
+    Wifi.wifiOff();                    
     //-SLEEPING--
     #if DEBUG
       RTC();
@@ -1058,10 +766,9 @@ void Sleep(MQTT_CLIENT_T* stateM){
     #endif
     //-SLEEP DONE--      
     Wifi.wifiConn(false,false,5);
+    sntp_init();
     mqttdone=false;
     mqttproceso=false;
-    ntpproceso = false;
-    state->dns_request_sent = false;
     dhtdone=false;  
     bmpdone=false;
     ldrdone=false;   
@@ -1072,7 +779,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
 //-------------- END FUNC. --------------------
 int main() {    
   //- SYSTEM SETUP -----------
-  //vreg_set_voltage(VREG_VOLTAGE_0_90);
+  vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
   sleep_ms(10); 
   set_sys_clock_khz(SYS_KHZ, true); 
   sleep_ms(10);
@@ -1094,10 +801,14 @@ int main() {
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
-  Wifi.wifiConn(false,true,5);
+  Wifi.wifiConn(false,true,5); 
+  Wifi.sntpAddServer("0.es.pool.ntp.org"); 
+  Wifi.sntpAddServer("1.es.pool.ntp.org");
+  Wifi.sntpAddServer("2.es.pool.ntp.org");
+  Wifi.sntpSetTimezone(1,0);
+  Wifi.sntpStartSync(); 
   ina219Setup(); 
-  bmp280setup();    
-  NTPSetup();    
+  bmp280setup();   
   //- MQTT --------------
   MQTT_CLIENT_T *stateM = mqtt_client_init();     
   run_dns_lookup(stateM);
@@ -1105,20 +816,19 @@ int main() {
   stateM->counter = 0;
   if (stateM->mqtt_client == NULL) {
     printf("-Failed to create new mqtt client\n");        
-  }
+  } 
   //- ONBOARD LED OFF -----------
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   //- SETUPTIME ---------
   TiempoLoop = time_us_64()-TiempoWait;
   printf("\n-SETUP OK! -T.Wait: %ims -T.Setup: %ims -T.Total: %ims\n",TiempoWait/1000,TiempoLoop/1000,(TiempoWait+TiempoLoop)/1000);    
-  //- END SETUP --------------     
-  printf("\n------------ LOOP -------------\n");   
-  //- LOOP -------------
+  //- END SETUP --------------    
+  printf("\n------------ LOOP -------------\n"); 
   while(true){   
     while(cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) == CYW43_LINK_UP){ 
-      execTime();     
-      NTPLoop();
-      serialInfo(old_voltage);
+      execTime();  
+      RTC();
+      serialInfo();
       LoopINA219();      
       MedGen();                     
       MQTT(stateM);

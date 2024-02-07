@@ -92,5 +92,7 @@
 #define LWIP_ALTCP               0
 #define LWIP_ALTCP_TLS           0
 #define LWIP_ALTCP_TLS_MBEDTLS   0
-#define MEMP_NUM_SYS_TIMEOUT     LWIP_NUM_SYS_TIMEOUT_INTERNAL + 2
+
+#define MEMP_NUM_SYS_TIMEOUT     LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1
+
 #endif

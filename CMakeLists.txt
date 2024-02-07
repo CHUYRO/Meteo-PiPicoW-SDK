@@ -51,10 +51,10 @@ target_compile_definitions(${NAME} PRIVATE
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
         PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\" 
-        #NDEBUG=0  # LWIP debug logging disabled
+        #NDEBUG=0  # LWIP debug logic disabled
         )
 
-target_compile_options(${NAME} PRIVATE -Wall -Werror -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
+target_compile_options(${NAME} PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
 
 target_include_directories(${NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
@@ -64,11 +64,11 @@ target_include_directories(${NAME} PRIVATE
 target_link_libraries(${NAME}        
         pico_stdlib        
         pico_cyw43_arch_lwip_threadsafe_background
+        #pico_cyw43_arch_lwip_poll
         pico_lwip_mqtt
         hardware_rtc
         hardware_adc 
-        hardware_sleep  
-        hardware_spi 
+        hardware_sleep 
         ina219      
         dht22
         bmp280  
