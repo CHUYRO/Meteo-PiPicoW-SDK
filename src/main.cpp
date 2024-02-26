@@ -12,7 +12,6 @@
 
 #include "hardware/adc.h"
 #include "hardware/vreg.h"
-#include "hardware/rtc.h"
 #include "hardware/clocks.h"
 #include "hardware/rosc.h"
 #include "hardware/structs/scb.h"
@@ -21,9 +20,6 @@
 #include <dht22.h>
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
-
-#include "lwip/apps/sntp.h"
-#include "hardware/rtc.h"
 
 #define DEBUG false // debug logic
 
@@ -101,9 +97,11 @@ long int ErrorMQTT = 0, Timeout = 0;
 absolute_time_t RTC_timer = nil_time;
 absolute_time_t execT_timer = nil_time;
 absolute_time_t timeoutControl_timer = nil_time;
+absolute_time_t noWifi = nil_time;
 
 //-WIFI-----------------
 wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
+bool activeLed = false;
 
 //-SLEEP------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
@@ -122,6 +120,7 @@ typedef struct MQTT_CLIENT_T_ {
 } MQTT_CLIENT_T;
 
 //----------------------------------- FUNC. START -------------------------------
+
 //-INTERNAL TIME OF EXEC.--------------------------
 void __no_inline_not_in_flash_func(execTime)(){     
   if (absolute_time_diff_us(get_absolute_time(), execT_timer) < 0) {
@@ -419,6 +418,7 @@ void recover_from_sleep(){
 
   //reset clocks
   clocks_init();
+
   //try to reinit usb - NOT working... after sleep usb is down.
   //stdio_init_all();
 
@@ -688,14 +688,6 @@ void handleTimeout(const char *timeoutType) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
   sleep_ms(300);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   printf("\n--- TIMEOUT %s: +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---", timeoutType, Segundos-StartingSEC, Segundos, StartingSEC);
   printf("\n-MQTT %s. Sensors %s: \n", mqttdone ? "OK" : "BAD", dhtdone && bmpdone && ldrdone && inadone ? "OK" : "BAD");
   printf("-initDate:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", Wifi.initTime(false), mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
@@ -731,6 +723,11 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 //-RECONNECT LOOP----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
+  if(absolute_time_diff_us(get_absolute_time(), noWifi) < 0) {
+    if(activeLed){cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, activeLed); activeLed=false;}
+    else{cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, activeLed); activeLed=true;}        
+    noWifi = make_timeout_time_us(300000);   //300ms 
+  } 
   Wifi.wifiConn(false,true,5); 
   mqttdone=false;
   mqttproceso=false;
@@ -739,14 +736,12 @@ void Reconnect_Loop(){
   ldrdone=false;   
   inadone=false;     
   serialdone=false;   
-  sleep_ms(20000);
+  sleep_ms(1000);
 }
-
-bool InitTimeGet = false;
 
 //-SLEEP-------------------------------------
 void Sleep(MQTT_CLIENT_T* stateM){
-  if(InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
+  if(Wifi.initTime(false)==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
     mqtt_disconnect(stateM->mqtt_client);  
     sntp_stop();
     Wifi.wifiOff();                    
@@ -776,6 +771,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
     serialdone=false;     
   } 
 }
+
 //-------------- END FUNC. --------------------
 int main() {    
   //- SYSTEM SETUP -----------

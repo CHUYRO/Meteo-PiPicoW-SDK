@@ -23,7 +23,8 @@ set(PICO_CXX_ENABLE_EXCEPTIONS 0)
 set(CMAKE_CXX_EXTENSIONS 0)
 
 if (PICO_SDK_VERSION_STRING VERSION_LESS "1.5.1")
-    message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.5.1 (or later) required!. Your version is ${PICO_SDK_VERSION_STRING}")
+    message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.5.1 (or later) required!. 
+    Your version is ${PICO_SDK_VERSION_STRING}")
 endif()
 
 pico_sdk_init()
@@ -66,7 +67,6 @@ target_link_libraries(${NAME}
         pico_cyw43_arch_lwip_threadsafe_background
         #pico_cyw43_arch_lwip_poll
         pico_lwip_mqtt
-        hardware_rtc
         hardware_adc 
         hardware_sleep 
         ina219      
