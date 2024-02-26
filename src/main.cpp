@@ -5,8 +5,6 @@
 #include "pico/cyw43_arch.h"
 #include "pico/sleep.h"
 
-#include "lwipopts.h"
-#include "lwip/init.h"
 #include "lwip/apps/mqtt.h"
 #include "lwip/dns.h"
 
@@ -50,14 +48,14 @@
 
 //---------- GLOBAL ---------- 
 
-//-RTC-------------
+//- RTC -------------
 unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
 bool night = false;
 
-//-LDR--------------
+//- LDR --------------
 float ldrVal = -1, ldrValRaw = 0;
 
-//-BMP280-----------
+//- BMP280 -----------
 #define MOSI 19
 #define SCK 18
 #define CS 17
@@ -68,20 +66,20 @@ uint8_t chipID = 0;
 double temperature = 0, pressure = 0;
 BMP280::BMP280 bmp280 = BMP280::BMP280(spi0, CS);
 
-//-DHT22-------------
+//- DHT22 -------------
 static const dht_model_t DHT_MODEL = DHT22;
 static const uint DATA_PIN = 15;
 float humidity;
 float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
-//-INA219-------------------------
+//- INA219 -------------------------
 float total_mA = 0, shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, total_mAM = 0;
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;    
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
 
-//-VSYS----------------
+//- VSYS ----------------
 float voltage = 0, adc = 0, tempC = 0;
 int voltage_return = 0;
 const float conversionFactor = 3.3f / (1 << 12);
@@ -90,7 +88,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 #endif
 #define PICO_FIRST_ADC_PIN 26 //Pin used for ADC 0
 
-//-TIME------------------
+//- TIME ------------------
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0, SegundosRawBMP = 0;
 unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0, MinutoComienzo = 0, HoraComienzo = 0, SegundoComienzo = 0, DiaComienzo = 0, MesComienzo = 0;
 long int ErrorMQTT = 0, Timeout = 0;
@@ -99,15 +97,15 @@ absolute_time_t execT_timer = nil_time;
 absolute_time_t timeoutControl_timer = nil_time;
 absolute_time_t noWifi = nil_time;
 
-//-WIFI-----------------
+//- WIFI -----------------
 wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 bool activeLed = false;
 
-//-SLEEP------------------------------
+//- SLEEP ------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
 bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, mqttproceso = false;
 
-//-MQTT---------------
+//- MQTT ---------------
 const char *ChannelID = "1713237";
 #define MQTT_SERVER_HOST "mqtt3.thingspeak.com"
 #define MQTT_SERVER_PORT 1883
@@ -121,7 +119,7 @@ typedef struct MQTT_CLIENT_T_ {
 
 //----------------------------------- FUNC. START -------------------------------
 
-//-INTERNAL TIME OF EXEC.--------------------------
+//- INTERNAL TIME OF EXEC. --------------------------
 void __no_inline_not_in_flash_func(execTime)(){     
   if (absolute_time_diff_us(get_absolute_time(), execT_timer) < 0) {
     USec = time_us_64() - (TiempoLoop+TiempoWait);
@@ -157,7 +155,7 @@ void __no_inline_not_in_flash_func(execTime)(){
   }   
 }
 
-
+//- RTC --------------------------
 void __no_inline_not_in_flash_func(RTC)(){  
   if (absolute_time_diff_us(get_absolute_time(), RTC_timer) < 0) {
     datetime_t datetimeNTP;
@@ -180,7 +178,7 @@ void __no_inline_not_in_flash_func(RTC)(){
   }    
 }
 
-//-MQTT---------------------------------------------------------
+//- MQTT ---------------------------------------------------------
 static MQTT_CLIENT_T* mqtt_client_init(void) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T *)calloc(1, sizeof(MQTT_CLIENT_T));    
   if (!stateM) {
@@ -318,7 +316,7 @@ void MQTT(MQTT_CLIENT_T* stateM){
   }
 }
 
-//-SLEEP-------------------------------------
+//- SLEEP -------------------------------------
 static void sleep_callback(void) {
   //printf("RTC woke us up\n"); 
   return;   
@@ -425,7 +423,39 @@ void recover_from_sleep(){
   return;
 }
 
-//-Measure freqs.--------------------------------------
+void Sleep(MQTT_CLIENT_T* stateM){
+  if(Wifi.initTime(false)==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
+    mqtt_disconnect(stateM->mqtt_client);  
+    sntp_stop();
+    Wifi.wifiOff();                    
+    //-SLEEPING--
+    #if DEBUG
+      RTC();
+      execTime(); 
+      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
+      sleep_ms(SLEEPTIME*1000);
+      RTC();
+      execTime();
+      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
+    #else
+      sleep_run_from_xosc();                                
+      rtc_sleep_custom(0,SLEEPTIME);
+      recover_from_sleep();
+    #endif
+    //-SLEEP DONE--      
+    Wifi.wifiConn(false,false,5);
+    sntp_init();
+    mqttdone=false;
+    mqttproceso=false;
+    dhtdone=false;  
+    bmpdone=false;
+    ldrdone=false;   
+    inadone=false;     
+    serialdone=false;     
+  } 
+}
+
+//- Measure freqs. --------------------------------------
 void measure_freqs() {
   uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
   uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
@@ -454,7 +484,7 @@ void measure_freqs() {
   // Can't measure clk_ref / xosc as it is the ref
 }
 
-//-LDR---------------------------------------
+//- LDR ---------------------------------------
 void LDRLoop() {
   if(ldrdone==false){
     adc_init();        
@@ -473,7 +503,7 @@ void LDRLoop() {
   }
 }
 
-//-DHT22------------------------------------
+//- DHT22 ------------------------------------
 void dht22() {
   if(dhtdone==false && SegundoRawDHT22+(uint64_t)2 < Segundos){
     SegundoRawDHT22=Segundos;
@@ -497,7 +527,7 @@ void dht22() {
   }
 }
 
-//-INA219------------------------------------------
+//- INA219 ------------------------------------------
 void ina219Setup(){
   i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
@@ -539,7 +569,7 @@ void LoopINA219() {
     #endif  
   }
 }
-//-BMP280------------------------------------
+//- BMP280 ------------------------------------
 void bmp280setup() {
   #if DEBUGBMP280
     printf("\n-BMP280 SETUP"); 
@@ -605,6 +635,7 @@ void bmp280loop() {
   }
 } 
 
+//- DATA COLLECTION FUNC. ------------------
 void MedGen(){
   LDRLoop();      
   bmp280loop();
@@ -612,12 +643,12 @@ void MedGen(){
   Tcomb = (temperature + temperature_c)/2;
 }
 
-//-GENERIC----------------------------------
+//- GENERIC ----------------------------------
 long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-//-SETUPINFO-----------------------------------
+//- SETUP INFO -----------------------------------
 static void SetupInfo(){
   //ADC READS
   adc_init();
@@ -638,7 +669,7 @@ static void SetupInfo(){
   measure_freqs();
 }
 
-//-SERIALINFO-----------------------------------
+//- SERIAL INFO -----------------------------------
 int power_voltage(float *voltage_result) {
   cyw43_thread_enter();
   // setup adc
@@ -679,7 +710,7 @@ static void serialInfo(){
   }
 }
 
-//-TIMEOUT CONTROL-------------------  
+//- TIMEOUT CONTROL -------------------  
 void handleTimeout(const char *timeoutType) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
   sleep_ms(300);
@@ -720,7 +751,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
   }   
 }
 
-//-RECONNECT LOOP----------
+//- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
   if(absolute_time_diff_us(get_absolute_time(), noWifi) < 0) {
@@ -737,39 +768,6 @@ void Reconnect_Loop(){
   inadone=false;     
   serialdone=false;   
   sleep_ms(1000);
-}
-
-//-SLEEP-------------------------------------
-void Sleep(MQTT_CLIENT_T* stateM){
-  if(Wifi.initTime(false)==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
-    mqtt_disconnect(stateM->mqtt_client);  
-    sntp_stop();
-    Wifi.wifiOff();                    
-    //-SLEEPING--
-    #if DEBUG
-      RTC();
-      execTime(); 
-      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
-      sleep_ms(SLEEPTIME*1000);
-      RTC();
-      execTime();
-      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
-    #else
-      sleep_run_from_xosc();                                
-      rtc_sleep_custom(0,SLEEPTIME);
-      recover_from_sleep();
-    #endif
-    //-SLEEP DONE--      
-    Wifi.wifiConn(false,false,5);
-    sntp_init();
-    mqttdone=false;
-    mqttproceso=false;
-    dhtdone=false;  
-    bmpdone=false;
-    ldrdone=false;   
-    inadone=false;     
-    serialdone=false;     
-  } 
 }
 
 //-------------- END FUNC. --------------------
@@ -790,7 +788,7 @@ int main() {
   stdio_init_all(); 
   sleep_ms(10);
   #if DEBUG 
-    while(!tud_cdc_connected()){sleep_ms(1);}       //Wait to console ready
+    while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
     sleep_ms(50);
   #endif   
   TiempoWait = time_us_64();
