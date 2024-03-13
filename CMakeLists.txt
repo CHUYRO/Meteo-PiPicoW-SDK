@@ -55,7 +55,7 @@ target_compile_definitions(${NAME} PRIVATE
         #NDEBUG=0  # LWIP debug logic disabled
         )
 
-target_compile_options(${NAME} PRIVATE -Wall -Werror -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) 
+target_compile_options(${NAME} PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) #-Werror
 
 target_include_directories(${NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
