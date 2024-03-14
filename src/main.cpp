@@ -300,7 +300,7 @@ err_t mqtt_test_connect(MQTT_CLIENT_T *stateM) {
 
 void MQTT(MQTT_CLIENT_T* stateM){
   if(mqttdone == false && mqttproceso == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){ 
-    if(mqtt_client_is_connected(stateM->mqtt_client)) {                
+    if(mqtt_client_is_connected(stateM->mqtt_client)){                
       cyw43_arch_lwip_begin(); 
       if(mqtt_test_publish(stateM) == ERR_OK){}else{printf("-Full ringbuffer or Publish error.\n");} 
       cyw43_arch_lwip_end();                
@@ -443,7 +443,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
       recover_from_sleep();
     #endif
     //-SLEEP DONE--      
-    Wifi.wifiConn(false,false,5);
+    Wifi.wifiConn(false,false);
     sntp_init();
     mqttdone=false;
     mqttproceso=false;
@@ -759,7 +759,7 @@ void Reconnect_Loop(){
     else{cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, activeLed); activeLed=true;}        
     noWifi = make_timeout_time_us(300000);   //300ms 
   } 
-  Wifi.wifiConn(false,true,5); 
+  Wifi.wifiConn(false,true); 
   mqttdone=false;
   mqttproceso=false;
   dhtdone=false;  
@@ -795,12 +795,12 @@ int main() {
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
-  Wifi.wifiConn(false,true,5); 
+  Wifi.wifiConn(false,true); 
   Wifi.sntpAddServer("0.es.pool.ntp.org"); 
   Wifi.sntpAddServer("1.es.pool.ntp.org");
   Wifi.sntpAddServer("2.es.pool.ntp.org");
   Wifi.sntpSetTimezone(1,0);
-  Wifi.sntpStartSync(); 
+  Wifi.sntpStartSync();  
   ina219Setup(); 
   bmp280setup();   
   //- MQTT --------------

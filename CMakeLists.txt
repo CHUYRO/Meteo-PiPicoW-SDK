@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 3.20)
 
 set(NAME main) #Name your project/executable here!
 
-if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
-        include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_sdk_import.cmake)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pico_sdk_import.cmake)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pico_sdk_import.cmake)
 else()
         message(WARNING "pico_sdk_import.cmake not found!")
 endif()
 
-if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/pico_extras_import.cmake)
-        include(${CMAKE_CURRENT_LIST_DIR}/cmake/pico_extras_import.cmake)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/pico_extras_import.cmake)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pico_extras_import.cmake)
 else()
         message(WARNING "pico_extras_import.cmake not found!")
 endif()
@@ -29,16 +29,16 @@ endif()
 
 pico_sdk_init()
 
-if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/cmake/credentials.cmake)
-        include(${CMAKE_CURRENT_LIST_DIR}/cmake/credentials.cmake)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/credentials.cmake)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/credentials.cmake)
 else()
         message(WARNING "Credentials file not found!")
 endif()
 
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/ina219)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/dht22)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/bmp280)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/include/wifiLib)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/ina219)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/dht22)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/bmp280)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/wifiLib)
 
 add_executable(${NAME} 
         src/${NAME}.cpp  
@@ -58,7 +58,7 @@ target_compile_definitions(${NAME} PRIVATE
 target_compile_options(${NAME} PRIVATE -Wall -Wno-unused-function -Wno-format -Wno-error=unused-variable  -Wno-maybe-uninitialized -Werror=unused-but-set-variable -Wno-error=unused-value -Wno-unknown-pragmas) #-Werror
 
 target_include_directories(${NAME} PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
 target_link_libraries(${NAME}        
@@ -76,7 +76,7 @@ target_link_libraries(${NAME}
 
 # Print memory usage
 add_custom_command(TARGET ${NAME} POST_BUILD
-COMMAND arm-none-eabi-size ${CMAKE_CURRENT_LIST_DIR}/build/${NAME}.elf
+COMMAND arm-none-eabi-size ${CMAKE_CURRENT_SOURCE_DIR}/build/${NAME}.elf
 VERBATIM)        
 string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,--print-memory-usage")   
 
