@@ -48,10 +48,6 @@
 
 //---------- GLOBAL ---------- 
 
-//- RTC -------------
-unsigned int SegundosRTC = 0, MinutosRTC = 0, HorasRTC = 0, DiaRTC = 0, MesRTC = 0, DiaWRTC = 0, AñoRTC = 0;
-bool night = false;
-
 //- LDR --------------
 float ldrVal = -1, ldrValRaw = 0;
 
@@ -92,14 +88,11 @@ const float conversionFactor = 3.3f / (1 << 12);
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, ntpHoras = 0, StartingSEC = 0, SegundoRawDHT22 = 0, SegundosRawBMP = 0;
 unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0, MinutoComienzo = 0, HoraComienzo = 0, SegundoComienzo = 0, DiaComienzo = 0, MesComienzo = 0;
 long int ErrorMQTT = 0, Timeout = 0;
-absolute_time_t RTC_timer = nil_time;
 absolute_time_t execT_timer = nil_time;
 absolute_time_t timeoutControl_timer = nil_time;
-absolute_time_t noWifi = nil_time;
 
 //- WIFI -----------------
 wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
-bool activeLed = false;
 
 //- SLEEP ------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
@@ -153,29 +146,6 @@ void __no_inline_not_in_flash_func(execTime)(){
     }     
     execT_timer = make_timeout_time_us(1000);  //1ms 
   }   
-}
-
-//- RTC --------------------------
-void __no_inline_not_in_flash_func(RTC)(){  
-  if (absolute_time_diff_us(get_absolute_time(), RTC_timer) < 0) {
-    datetime_t datetimeNTP;
-    rtc_get_datetime(&datetimeNTP);
-    if(datetimeNTP.sec != -1){
-      SegundosRTC = datetimeNTP.sec;
-      MinutosRTC = datetimeNTP.min;
-      HorasRTC = datetimeNTP.hour;
-      DiaRTC = datetimeNTP.day;
-      MesRTC = datetimeNTP.month;
-      DiaWRTC = datetimeNTP.dotw;
-      AñoRTC = datetimeNTP.year;
-      #if DEBUGRTC     
-      execTime();             
-      printf("\n-RTC(get):%02i:%02i:%02i T:%02lli:%02lli:%03lli\n",HorasRTC,MinutosRTC,SegundosRTC,MinutosTot,SegundosTot,MillisTot); 
-      #endif 
-      (HorasRTC >= 3 && HorasRTC <= 8) ? night = true : night = false;
-    }
-    RTC_timer = make_timeout_time_us(100000);  //100ms 
-  }    
 }
 
 //- MQTT ---------------------------------------------------------
@@ -323,13 +293,13 @@ static void sleep_callback(void) {
 }
 
 static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {  
-  uint secondTO = second_to_sleep_to + SegundosRTC;
-  uint minuteTO = minute_to_sleep_to + MinutosRTC;
-  uint horaTO = HorasRTC;
-  uint diaTO = DiaRTC;
-  uint diaWTO = DiaWRTC;
-  uint mesTO = MesRTC;
-  uint añoTO = AñoRTC;
+  uint secondTO = second_to_sleep_to + Wifi.SegundosRTC;
+  uint minuteTO = minute_to_sleep_to + Wifi.MinutosRTC;
+  uint horaTO = Wifi.HorasRTC;
+  uint diaTO = Wifi.DiaRTC;
+  uint diaWTO = Wifi.DiaWRTC;
+  uint mesTO = Wifi.MesRTC;
+  uint añoTO = Wifi.AñoRTC;
 
   while(secondTO>=60 || minuteTO>=60){
     if(secondTO>=60){
@@ -424,19 +394,16 @@ void recover_from_sleep(){
 }
 
 void Sleep(MQTT_CLIENT_T* stateM){
-  if(Wifi.initTime(false)==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
-    mqtt_disconnect(stateM->mqtt_client);  
-    sntp_stop();
+  if(Wifi.InitTimeGet==true && mqttdone==true && mqttproceso==false && dhtdone==true && bmpdone==true && ldrdone==true && inadone==true){  
+    mqtt_disconnect(stateM->mqtt_client); 
     Wifi.wifiOff();                    
     //-SLEEPING--
     #if DEBUG
-      RTC();
       execTime(); 
-      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
+      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot);
       sleep_ms(SLEEPTIME*1000);
-      RTC();
       execTime();
-      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",DiaRTC, MesRTC, HorasRTC, MinutosRTC, SegundosRTC, MinutosTot, SegundosTot, MillisTot);
+      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot);
     #else
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,SLEEPTIME);
@@ -444,7 +411,6 @@ void Sleep(MQTT_CLIENT_T* stateM){
     #endif
     //-SLEEP DONE--      
     Wifi.wifiConn(false,false);
-    sntp_init();
     mqttdone=false;
     mqttproceso=false;
     dhtdone=false;  
@@ -550,7 +516,7 @@ void LoopINA219() {
     }
     power_W = power_mW / 1000;       
     total_mA += current_mA;
-    total_mAH = total_mA/SLEEPTIME+8; 
+    total_mAH = total_mA * ((SLEEPTIME+8) / 36000.0); 
     if(Horas > 0){
       total_mAM = total_mAH / Horas;
     }
@@ -721,7 +687,7 @@ void handleTimeout(const char *timeoutType) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   printf("\n--- TIMEOUT %s: +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---", timeoutType, Segundos-StartingSEC, Segundos, StartingSEC);
   printf("\n-MQTT %s. Sensors %s: \n", mqttdone ? "OK" : "BAD", dhtdone && bmpdone && ldrdone && inadone ? "OK" : "BAD");
-  printf("-initDate:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", Wifi.initTime(false), mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
+  printf("-initDate:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", Wifi.InitTimeGet, mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
   if(strcmp(timeoutType,"MQTT")==0 || strcmp(timeoutType,"MQTT+SENSORS")==0 || strcmp(timeoutType,"MQTTproceso")==0){
     dhtdone=false;  
     bmpdone=false;
@@ -754,11 +720,6 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 //- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
-  if(absolute_time_diff_us(get_absolute_time(), noWifi) < 0) {
-    if(activeLed){cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, activeLed); activeLed=false;}
-    else{cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, activeLed); activeLed=true;}        
-    noWifi = make_timeout_time_us(300000);   //300ms 
-  } 
   Wifi.wifiConn(false,true); 
   mqttdone=false;
   mqttproceso=false;
@@ -796,11 +757,6 @@ int main() {
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
   Wifi.wifiConn(false,true); 
-  Wifi.sntpAddServer("0.es.pool.ntp.org"); 
-  Wifi.sntpAddServer("1.es.pool.ntp.org");
-  Wifi.sntpAddServer("2.es.pool.ntp.org");
-  Wifi.sntpSetTimezone(1,0);
-  Wifi.sntpStartSync();  
   ina219Setup(); 
   bmp280setup();   
   //- MQTT --------------
@@ -820,8 +776,8 @@ int main() {
   printf("\n------------ LOOP -------------\n"); 
   while(true){   
     while(cyw43_tcpip_link_status(&cyw43_state,CYW43_ITF_STA) == CYW43_LINK_UP){ 
-      execTime();  
-      RTC();
+      execTime(); 
+      Wifi.NTPLoop();
       serialInfo();
       LoopINA219();      
       MedGen();                     
