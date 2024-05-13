@@ -18,13 +18,13 @@
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
 
-#define DEBUG true // debug logic
+#define DEBUG false // debug logic
 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
-  #define DEBUGINA219 true
+  #define DEBUGINA219 false
   #define SLEEPTIME 30
   #include "tusb.h"
 #else
