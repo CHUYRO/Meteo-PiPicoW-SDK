@@ -18,13 +18,13 @@
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
 
-#define DEBUG false // debug logic
+#define DEBUG true // debug logic
 
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
-  #define DEBUGINA219 false
+  #define DEBUGINA219 true
   #define SLEEPTIME 30
   #include "tusb.h"
 #else
@@ -506,6 +506,7 @@ void ina219Setup(){
 
 void LoopINA219() {
   if(inadone==false){   
+    busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
     i.wake();
     for(int t = 0; t<30; t++){
       busvoltageSum += i.voltage();
@@ -513,7 +514,7 @@ void LoopINA219() {
       current_mASum += i.current(); 
       power_mWSum += i.power();
       loadvoltageSum += i.supply_voltage();
-      sleep_ms(2);
+      sleep_ms(3);
     }    
     i.sleep(); 
     busvoltage = busvoltageSum/30;
