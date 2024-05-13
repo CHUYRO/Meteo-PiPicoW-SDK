@@ -51,7 +51,8 @@ target_compile_definitions(${NAME} PRIVATE
         WIFI_PASSWORD2=\"${WIFI_PASSWORD2}\"  
         MQTT_CLIENT_ID=\"${MQTT_CLIENT_ID}\"
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
-        PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\" 
+        PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\"
+        IP1=\"${IP1}\"
         #NDEBUG=0  # LWIP debug logic disabled
         )
 
