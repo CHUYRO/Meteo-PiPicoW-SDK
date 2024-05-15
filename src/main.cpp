@@ -406,8 +406,8 @@ void Sleep(MQTT_CLIENT_T* stateM){
       Wifi.NTPLoop();
       exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
       exactOnTimeFirst = time_us_64();
-       printf("\n----------------------------------------------------\n");
-      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime);
+      printf("\n----------------------------------------------------\n");
+      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %lli ms STOT: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
     #else
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,SLEEPTIME);
@@ -530,7 +530,7 @@ void LoopINA219() {
       power_mW *=-1;
     }
     power_W = power_mW / 1000;       
-    total_mAH += current_mA * (((exactSleepTime+exactOnTime)/1000) / 36000.0);
+    total_mAH += current_mA * ((exactSleepTime+exactOnTime)/3600000);
     if(Horas > 0){
       total_mAM = total_mAH / Horas;
     }
