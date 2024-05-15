@@ -67,7 +67,7 @@ float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
 //- INA219 -------------------------
-float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0;
+float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0;
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;    
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
@@ -530,13 +530,9 @@ void LoopINA219() {
       power_mW *=-1;
     }
     power_W = power_mW / 1000;       
-    total_mAH += current_mA * ((exactSleepTime+exactOnTime)/3600000);
-    if(Horas > 0){
-      total_mAM = total_mAH / Horas;
-    }
-    else{
-      total_mAM = total_mAH;
-    } 
+    total_mA += current_mA; 
+    total_mAH = total_mA  * ((exactSleepTime + exactOnTime) / 1000) * 3600;
+    if(Horas > 0){total_mAM = total_mAH / Horas;}else if(Horas == 0){total_mAM = total_mAH;} 
     inadone=true;
     #if DEBUGINA219
       printf("\n------ INA219 DEBUG ------\n");
