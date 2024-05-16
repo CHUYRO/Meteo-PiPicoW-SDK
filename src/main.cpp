@@ -109,7 +109,6 @@ typedef struct MQTT_CLIENT_T_ {
 } MQTT_CLIENT_T;
 
 //----------------------------------- FUNC. START -------------------------------
-
 //- INTERNAL TIME OF EXEC. --------------------------
 void __no_inline_not_in_flash_func(execTime)(){     
   if (absolute_time_diff_us(get_absolute_time(), execT_timer) < 0) {
@@ -145,7 +144,34 @@ void __no_inline_not_in_flash_func(execTime)(){
     execT_timer = make_timeout_time_us(1000);  //1ms 
   }   
 }
+//- Measure freqs. --------------------------------------
+void measure_freqs() {
+  uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+  uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
+  uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
+  uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+  uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
+  uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
+  uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+  uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
 
+  //-SLEEP----------------    
+  //save clock values for awake
+  scb_orig = scb_hw->scr;
+  clock0_orig = clocks_hw->sleep_en0;
+  clock1_orig = clocks_hw->sleep_en1;
+
+  printf("\n-FREQS.");
+  printf("\n--pll_sys  = %dkHz\n", f_pll_sys);
+  printf("--pll_usb  = %dkHz\n", f_pll_usb);
+  printf("--rosc     = %dkHz\n", f_rosc);
+  printf("--clk_sys  = %dkHz\n", f_clk_sys);
+  printf("--clk_peri = %dkHz\n", f_clk_peri);
+  printf("--clk_usb  = %dkHz\n", f_clk_usb);
+  printf("--clk_adc  = %dkHz\n", f_clk_adc);
+  printf("--clk_rtc  = %dkHz\n", f_clk_rtc); 
+  // Can't measure clk_ref / xosc as it is the ref
+}
 //- MQTT ---------------------------------------------------------
 static MQTT_CLIENT_T* mqtt_client_init(void) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T *)calloc(1, sizeof(MQTT_CLIENT_T));    
@@ -156,13 +182,11 @@ static MQTT_CLIENT_T* mqtt_client_init(void) {
   stateM->received = 0;
   return stateM;
 }
-
 void dns_found(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T*)callback_arg;
   printf("-DNS query finished with resolved addr of %s.\n", ip4addr_ntoa(ipaddr));
   stateM->remote_addr = *ipaddr;
 }
-
 void run_dns_lookup(MQTT_CLIENT_T *stateM) {
   printf("\n-Running mqtt DNS query for %s.\n", MQTT_SERVER_HOST);
 
@@ -189,7 +213,6 @@ void run_dns_lookup(MQTT_CLIENT_T *stateM) {
   }
   Timeout = 0;
 }
-
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status) {
   if (status != 0) {ErrorMQTT++;} 
   #if DEBUGMQTT
@@ -197,7 +220,6 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
   #endif  
   mqttproceso = false;
 }
-
 void mqtt_pub_request_cb(void *arg, err_t err) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T *)arg;
   #if DEBUGMQTT 
@@ -214,13 +236,12 @@ void mqtt_pub_request_cb(void *arg, err_t err) {
   stateM->received++;
   mqttproceso = false;
 }
-
 err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
   char buffer[128];
   err_t err;
   u8_t qos = 0;   //0, 1 or 2. ThingSpeak is 0.
   u8_t retain = 0;    
-  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAH,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,current_mA);
+  sprintf(buffer, "field1=%.2f&field2=%.2f&field3=%.3f&field4=%.2f&field5=%.2f&field6=%.2f&field7=%f&field8=%.2f", total_mAM,humidity,pressure,ldrVal,Tcomb,loadvoltage,voltage,current_mA);
   const char *channels = "channels/";
   const char *chanNum = ChannelID;
   const char *publish = "/publish";
@@ -238,7 +259,6 @@ err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
 
   return err; 
 }
-
 err_t mqtt_test_connect(MQTT_CLIENT_T *stateM) {
   struct mqtt_connect_client_info_t ci;
   err_t err;
@@ -265,7 +285,6 @@ err_t mqtt_test_connect(MQTT_CLIENT_T *stateM) {
 
   return err;
 }
-
 void MQTT(MQTT_CLIENT_T* stateM){
   if(mqttdone == false && mqttproceso == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){ 
     if(mqtt_client_is_connected(stateM->mqtt_client)){                
@@ -283,13 +302,11 @@ void MQTT(MQTT_CLIENT_T* stateM){
     }         
   }
 }
-
 //- SLEEP -------------------------------------
 static void sleep_callback(void) {
   //printf("RTC woke us up\n"); 
   return;   
 }
-
 static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {  
   uint secondTO = second_to_sleep_to + Wifi.SegundosRTC;
   uint minuteTO = minute_to_sleep_to + Wifi.MinutosRTC;
@@ -371,7 +388,6 @@ static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {
   };    
   sleep_goto_sleep_until(&t_alarm, &sleep_callback);
 }
-
 void recover_from_sleep(){
 
   //Re-enable ring Oscillator control
@@ -426,36 +442,6 @@ void Sleep(MQTT_CLIENT_T* stateM){
     serialdone=false;     
   } 
 }
-
-//- Measure freqs. --------------------------------------
-void measure_freqs() {
-  uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
-  uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
-  uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
-  uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
-  uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
-  uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
-  uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
-  uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
-
-  //-SLEEP----------------    
-  //save clock values for awake
-  scb_orig = scb_hw->scr;
-  clock0_orig = clocks_hw->sleep_en0;
-  clock1_orig = clocks_hw->sleep_en1;
-
-  printf("\n-FREQS.");
-  printf("\n--pll_sys  = %dkHz\n", f_pll_sys);
-  printf("--pll_usb  = %dkHz\n", f_pll_usb);
-  printf("--rosc     = %dkHz\n", f_rosc);
-  printf("--clk_sys  = %dkHz\n", f_clk_sys);
-  printf("--clk_peri = %dkHz\n", f_clk_peri);
-  printf("--clk_usb  = %dkHz\n", f_clk_usb);
-  printf("--clk_adc  = %dkHz\n", f_clk_adc);
-  printf("--clk_rtc  = %dkHz\n", f_clk_rtc); 
-  // Can't measure clk_ref / xosc as it is the ref
-}
-
 //- LDR ---------------------------------------
 void LDRLoop() {
   if(ldrdone==false){
@@ -474,7 +460,6 @@ void LDRLoop() {
     //printf("\n-LDR: %f\n",ldrVal);
   }
 }
-
 //- DHT22 ------------------------------------
 void dht22() {
   if(dhtdone==false && SegundoRawDHT22+(uint64_t)2 < Segundos){
@@ -498,12 +483,10 @@ void dht22() {
     dht_deinit(&dht);       
   }
 }
-
 //- INA219 ------------------------------------------
 void ina219Setup(){
   i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
-
 void LoopINA219() {
   if(inadone==false){   
     busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
@@ -614,7 +597,6 @@ void bmp280loop() {
     #endif    
   }
 } 
-
 //- DATA COLLECTION FUNC. ------------------
 void MedGen(){
   LDRLoop();      
@@ -622,12 +604,10 @@ void MedGen(){
   dht22();
   Tcomb = (temperature + temperature_c)/2;
 }
-
 //- GENERIC ----------------------------------
 long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-
 //- SETUP INFO -----------------------------------
 static void SetupInfo(){
   if (watchdog_enable_caused_reboot()) {
@@ -653,7 +633,6 @@ static void SetupInfo(){
   printf("-rp2040_rom_version: %d\n", rp2040_rom_version());
   measure_freqs();
 }
-
 //- SERIAL INFO -----------------------------------
 int power_voltage(float *voltage_result) {
   cyw43_thread_enter();
@@ -673,7 +652,6 @@ int power_voltage(float *voltage_result) {
   *voltage_result = vsys * 3 * conversion_factor;
   return PICO_OK;
 }
-
 static void serialInfo(){
   if(serialdone==false){         
     //-TEMP
@@ -694,7 +672,6 @@ static void serialInfo(){
     serialdone=true;
   }
 }
-
 //- TIMEOUT CONTROL -------------------  
 void handleTimeout(const char *timeoutType) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -719,7 +696,6 @@ void handleTimeout(const char *timeoutType) {
     Wifi.ntpupdated=false; 
   } 
 }
-
 void TimeoutControl(MQTT_CLIENT_T *stateM){
   if (absolute_time_diff_us(get_absolute_time(), timeoutControl_timer) < 0) {
     if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){
@@ -740,7 +716,6 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
     timeoutControl_timer = make_timeout_time_us(500000);   //500ms 
   }   
 }
-
 //- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
   printf("\n------- LOOP WIFI ERROR -------\n");
@@ -754,8 +729,8 @@ void Reconnect_Loop(){
   serialdone=false;   
   sleep_ms(1000);
 }
-
 //-------------- END FUNC. --------------------
+
 int main() {    
   //- SYSTEM SETUP -----------
   vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
