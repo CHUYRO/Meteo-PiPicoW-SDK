@@ -25,7 +25,7 @@
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGINA219 false
-  #define SLEEPTIME 30
+  #define SLEEPTIME 20
   #include "tusb.h"
 #else
   #define DEBUGBMP280 false
@@ -67,7 +67,7 @@ float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
 //- INA219 -------------------------
-float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0;
+float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0, total_mW = 0, total_mWH = 0, total_mWM = 0;
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;    
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
@@ -531,8 +531,10 @@ void LoopINA219() {
     }
     power_W = power_mW / 1000;       
     total_mA += current_mA; 
-    total_mAH = total_mA  * ((exactSleepTime + exactOnTime) / 1000) * 3600;
-    if(Horas > 0){total_mAM = total_mAH / Horas;}else if(Horas == 0){total_mAM = total_mAH;} 
+    total_mW += power_mW;
+    total_mAH = total_mA / (3600000 / float(exactSleepTime + exactOnTime));   
+    total_mWH = total_mW / (3600000 / float(exactSleepTime + exactOnTime)); 
+    if(Horas > 0){total_mAM = total_mAH / Horas; total_mWM = total_mWH / Horas;}else if(Horas == 0){total_mAM = total_mAH; total_mWM = total_mWH;} 
     inadone=true;
     #if DEBUGINA219
       printf("\n------ INA219 DEBUG ------\n");
@@ -541,6 +543,8 @@ void LoopINA219() {
       printf("-loadvoltage: %.3f V\n", loadvoltage);
       printf("-current_mA: %.2f mA\n", current_mA);
       printf("-power_mW: %.2f mW\n", power_mW);
+      printf("-mAhtot: %.3f mAh_avg: %.3f\n", total_mAH, total_mAM);
+      printf("-mWhtot: %.3f mWh_avg: %.3f\n", total_mWH, total_mWM);
       printf("---------- END ----------\n");
     #endif  
   }
@@ -626,6 +630,11 @@ long mapcustom(long x, long in_min, long in_max, long out_min, long out_max) {
 
 //- SETUP INFO -----------------------------------
 static void SetupInfo(){
+  if (watchdog_enable_caused_reboot()) {
+    printf("\n-Rebooted by Watchdog Timeout!\n");
+  } else {
+    printf("\n-Clean boot\n");
+  }
   //ADC READS
   adc_init();
   adc_gpio_init(27);
