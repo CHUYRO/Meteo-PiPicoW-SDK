@@ -11,3 +11,6 @@
 	path = include/dht22
 	url = https://github.com/CHUYRO/dht22.git
 
+[submodule "include/telnetdLib"]
+	path = include/telnetdLib
+	url = https://github.com/CHUYRO/telnetdLib.git
