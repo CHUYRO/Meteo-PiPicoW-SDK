@@ -24,7 +24,7 @@
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
-  #define DEBUGINA219 false
+  #define DEBUGINA219 true
   #define SLEEPTIME 20
   #include "tusb.h"
 #else
@@ -69,7 +69,7 @@ dht_t dht;
 //- INA219 -------------------------
 float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0, total_mW = 0, total_mWH = 0, total_mWM = 0;
 float SHUNT_OHMS = 0.1;
-float MAX_EXPECTED_AMPS = 3.2;    
+float MAX_EXPECTED_AMPS = 3.2;  
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
 
 //- VSYS ----------------
@@ -497,7 +497,7 @@ void LoopINA219() {
       current_mASum += i.current(); 
       power_mWSum += i.power();
       loadvoltageSum += i.supply_voltage();
-      sleep_ms(3);
+      sleep_ms(1);
     }    
     i.sleep(); 
     busvoltage = busvoltageSum/30;
@@ -512,12 +512,15 @@ void LoopINA219() {
     if (power_mW < 0){
       power_mW *=-1;
     }
-    power_W = power_mW / 1000;       
-    total_mA += current_mA; 
-    total_mW += power_mW;
-    total_mAH = total_mA / (3600000 / float(exactSleepTime + exactOnTime));   
-    total_mWH = total_mW / (3600000 / float(exactSleepTime + exactOnTime)); 
-    if(Horas > 0){total_mAM = total_mAH / Horas; total_mWM = total_mWH / Horas;}else if(Horas == 0){total_mAM = total_mAH; total_mWM = total_mWH;} 
+    power_W = power_mW / 1000; 
+
+    double Inatime = exactOnTime;
+    double Inaofftime = exactSleepTime;
+    total_mAH += ((current_mA * (Inatime / 3600000.0)) + (4 * (Inaofftime / 3600000.0))); //measured 4 mA during sleep
+    total_mWH += ((power_mW * (Inatime / 3600000.0)) + (18 * (Inaofftime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
+    execTime();
+    double SegIna = Segundos;
+    if(SegIna > 0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
     inadone=true;
     #if DEBUGINA219
       printf("\n------ INA219 DEBUG ------\n");
@@ -526,8 +529,8 @@ void LoopINA219() {
       printf("-loadvoltage: %.3f V\n", loadvoltage);
       printf("-current_mA: %.2f mA\n", current_mA);
       printf("-power_mW: %.2f mW\n", power_mW);
-      printf("-mAhtot: %.3f mAh_avg: %.3f\n", total_mAH, total_mAM);
-      printf("-mWhtot: %.3f mWh_avg: %.3f\n", total_mWH, total_mWM);
+      printf("-total_mA: %.1f mAh/h: %.1f\n", total_mA, total_mAM);
+      printf("-total_mW: %.1f mWh/h: %.1f\n", total_mW, total_mWM);
       printf("---------- END ----------\n");
     #endif  
   }
