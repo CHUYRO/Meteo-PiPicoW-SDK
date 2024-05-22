@@ -39,6 +39,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/ina219)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/dht22)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/bmp280)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/wifiLib)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/include/telnetdLib)
 
 add_executable(${NAME} 
         src/${NAME}.cpp  
@@ -73,6 +74,7 @@ target_link_libraries(${NAME}
         dht22
         bmp280  
         wifiLib
+        telnetdLib
         )
 
 # Print memory usage

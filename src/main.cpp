@@ -27,6 +27,9 @@
   #define DEBUGINA219 true
   #define SLEEPTIME 20
   #include "tusb.h"
+  //- TELNETD -----------------------
+  #include <telnetdLib.hpp>
+  telnetdLib::telnetdLib telnetd = telnetdLib::telnetdLib();  
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -70,7 +73,7 @@ dht_t dht;
 float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0, total_mW = 0, total_mWH = 0, total_mWM = 0;
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;  
-INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS);
+INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS); 
 
 //- VSYS ----------------
 float voltage = 0, adc = 0, tempC = 0;
@@ -85,7 +88,6 @@ const float conversionFactor = 3.3f / (1 << 12);
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, StartingSEC = 0, SegundoRawDHT22 = 0, SegundosRawBMP = 0;
 unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0;
 long int ErrorMQTT = 0, Timeout = 0;
-absolute_time_t execT_timer = nil_time;
 absolute_time_t timeoutControl_timer = nil_time;
 
 //- WIFI -----------------
@@ -110,39 +112,36 @@ typedef struct MQTT_CLIENT_T_ {
 
 //----------------------------------- FUNC. START -------------------------------
 //- INTERNAL TIME OF EXEC. --------------------------
-void __no_inline_not_in_flash_func(execTime)(){     
-  if (absolute_time_diff_us(get_absolute_time(), execT_timer) < 0) {
-    USec = time_us_64() - (TiempoLoop+TiempoWait);
-    Millis = USec / 1000;
-    Segundos = Millis / 1000;
-    Minutos = Segundos / 60;
-    Horas = Minutos / 60;
-    Dias = Horas / 24;
+void __no_inline_not_in_flash_func(execTime)(){ 
+  USec = time_us_64() - (TiempoLoop+TiempoWait);
+  Millis = USec / 1000;
+  Segundos = Millis / 1000;
+  Minutos = Segundos / 60;
+  Horas = Minutos / 60;
+  Dias = Horas / 24;
 
-    MillisTot = Millis - Segundos*1000;
-    SegundosTot = Segundos - Minutos*60;
-    MinutosTot = Minutos - Horas*60;
-    HorasTot = Horas - Dias*24;
-    DiasTot = Dias;
+  MillisTot = Millis - Segundos*1000;
+  SegundosTot = Segundos - Minutos*60;
+  MinutosTot = Minutos - Horas*60;
+  HorasTot = Horas - Dias*24;
+  DiasTot = Dias;
 
-    if(MillisTot%1000 == 0 && MillisTot != MillisRaw){
-      MillisTot = 0;
-      MillisRaw = MillisTot;        
-    } 
-    if(SegundosTot%60 == 0 && SegundosTot != SegundosRaw){
-      SegundosTot = 0;
-      SegundosRaw = SegundosTot;        
-    }           
-    if(MinutosTot%60 == 0 && MinutosTot != MinutosRaw){
-      MinutosTot = 0;
-      MinutosRaw = MinutosTot;
-    }
-    if(HorasTot%24 == 0 && HorasTot != HorasRaw){ 
-      HorasTot = 0;
-      HorasRaw = HorasTot;
-    }     
-    execT_timer = make_timeout_time_us(1000);  //1ms 
-  }   
+  if(MillisTot%1000 == 0 && MillisTot != MillisRaw){
+    MillisTot = 0;
+    MillisRaw = MillisTot;        
+  } 
+  if(SegundosTot%60 == 0 && SegundosTot != SegundosRaw){
+    SegundosTot = 0;
+    SegundosRaw = SegundosTot;        
+  }           
+  if(MinutosTot%60 == 0 && MinutosTot != MinutosRaw){
+    MinutosTot = 0;
+    MinutosRaw = MinutosTot;
+  }
+  if(HorasTot%24 == 0 && HorasTot != HorasRaw){ 
+    HorasTot = 0;
+    HorasRaw = HorasTot;
+  } 
 }
 //- Measure freqs. --------------------------------------
 void measure_freqs() {
@@ -516,11 +515,11 @@ void LoopINA219() {
 
     double Inatime = exactOnTime;
     double Inaofftime = exactSleepTime;
-    total_mAH += ((current_mA * (Inatime / 3600000.0)) + (4 * (Inaofftime / 3600000.0))); //measured 4 mA during sleep
-    total_mWH += ((power_mW * (Inatime / 3600000.0)) + (18 * (Inaofftime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
+    total_mAH += ((current_mA * (Inatime / 3600000.0)) + (4.0 * (Inaofftime / 3600000.0))); //measured 4 mA during sleep
+    total_mWH += ((power_mW * (Inatime / 3600000.0)) + (18.0 * (Inaofftime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
     execTime();
-    double SegIna = Segundos;
-    if(SegIna > 0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
+    int SegIna = Segundos;
+    if(SegIna > 0){total_mAM = total_mAH / (SegIna/3600.0); total_mWM = total_mWH / (SegIna/3600.0);}
     inadone=true;
     #if DEBUGINA219
       printf("\n------ INA219 DEBUG ------\n");
@@ -529,8 +528,9 @@ void LoopINA219() {
       printf("-loadvoltage: %.3f V\n", loadvoltage);
       printf("-current_mA: %.2f mA\n", current_mA);
       printf("-power_mW: %.2f mW\n", power_mW);
-      printf("-total_mA: %.1f mAh/h: %.1f\n", total_mA, total_mAM);
-      printf("-total_mW: %.1f mWh/h: %.1f\n", total_mW, total_mWM);
+      printf("-total_mAh: %.2f mAh/h: %.2f\n", total_mAH, total_mAM);
+      printf("-total_mWh: %.2f mWh/h: %.2f\n", total_mWH, total_mWM);
+      printf("-SegIna: %lli onTime: %.4f offTime: %.4f\n", SegIna, (current_mA * (Inatime / 3600000.0)), (4.0 * (Inaofftime / 3600000.0)));
       printf("---------- END ----------\n");
     #endif  
   }
@@ -753,14 +753,17 @@ int main() {
   #if DEBUG 
     while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
     sleep_ms(50);
-  #endif   
+  #endif  
   TiempoWait = time_us_64();
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
   SetupInfo();
   Wifi.wifiConn(false,true); 
   ina219Setup(); 
-  bmp280setup();   
+  bmp280setup();  
+  #if DEBUG
+  telnetd.telnetdSetup();
+  #endif 
   //- MQTT --------------
   MQTT_CLIENT_T *stateM = mqtt_client_init();     
   run_dns_lookup(stateM);
