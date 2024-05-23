@@ -415,7 +415,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
     #if DEBUG
       execTime();      
       Wifi.NTPLoop(); 
-      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot,exactOnTime);
+      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);
       sleep_ms(SLEEPTIME*1000);
       execTime();
       Wifi.NTPLoop();
@@ -513,13 +513,12 @@ void LoopINA219() {
     }
     power_W = power_mW / 1000; 
 
-    double Inatime = exactOnTime;
-    double Inaofftime = exactSleepTime;
-    total_mAH += ((current_mA * (Inatime / 3600000.0)) + (4.0 * (Inaofftime / 3600000.0))); //measured 4 mA during sleep
-    total_mWH += ((power_mW * (Inatime / 3600000.0)) + (18.0 * (Inaofftime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
+    total_mAH += ((current_mA * (exactOnTime / 3600000.0)) + (4.0 * (exactSleepTime / 3600000.0))); //measured 4 mA during sleep
+    total_mWH += ((power_mW * (exactOnTime / 3600000.0)) + (18.0 * (exactSleepTime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
     execTime();
-    int SegIna = Segundos;
+    long int SegIna = Segundos;
     if(SegIna > 0){total_mAM = total_mAH / (SegIna/3600.0); total_mWM = total_mWH / (SegIna/3600.0);}
+    
     inadone=true;
     #if DEBUGINA219
       printf("\n------ INA219 DEBUG ------\n");
@@ -530,7 +529,7 @@ void LoopINA219() {
       printf("-power_mW: %.2f mW\n", power_mW);
       printf("-total_mAh: %.2f mAh/h: %.2f\n", total_mAH, total_mAM);
       printf("-total_mWh: %.2f mWh/h: %.2f\n", total_mWH, total_mWM);
-      printf("-SegIna: %lli onTime: %.4f offTime: %.4f\n", SegIna, (current_mA * (Inatime / 3600000.0)), (4.0 * (Inaofftime / 3600000.0)));
+      printf("-Segundos: %02li onTime: %.4f offTime: %.4f\n",SegIna ,(current_mA * (exactOnTime / 3600000.0)) ,(4.0 * (exactSleepTime / 3600000.0)));
       printf("---------- END ----------\n");
     #endif  
   }
@@ -750,10 +749,10 @@ int main() {
   sleep_ms(10);    
   stdio_init_all(); 
   sleep_ms(10);
-  #if DEBUG 
+/*   #if DEBUG 
     while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
     sleep_ms(50);
-  #endif  
+  #endif   */
   TiempoWait = time_us_64();
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
