@@ -86,7 +86,7 @@ const float conversionFactor = 3.3f / (1 << 12);
 
 //- TIME ------------------
 uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minutos = 0, MinutosRaw = 0, MinutosTot = 0, Segundos = 0, SegundosRaw = 0, SegundosTot = 0, Horas = 0, HorasRaw = 0, HorasTot = 0, debugControlDia = 0, Dias = 0, DiasTot = 0, StartingSEC = 0, SegundoRawDHT22 = 0, SegundosRawBMP = 0;
-unsigned int TiempoWait = 0, TiempoLoop = 0, diaint = 0, dianum = 0, mes = 0, año = 0;
+unsigned int TiempoWait = 0, TiempoLoop = 0;
 long int ErrorMQTT = 0, Timeout = 0;
 absolute_time_t timeoutControl_timer = nil_time;
 
@@ -96,7 +96,7 @@ wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 //- SLEEP ------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
 bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, mqttproceso = false;
-uint64_t exactSleepTime = 0, exactSleepTimeFirst = 0,exactOnTime = 0, exactOnTimeFirst = 0;
+uint64_t exactSleepTime = 0, exactSleepTimeFirst = 0, exactOnTimeFirst = 0;
 
 //- MQTT ---------------
 const char *ChannelID = "1713237";
@@ -409,8 +409,8 @@ void Sleep(MQTT_CLIENT_T* stateM){
   if(Wifi.InitTimeGet && Wifi.ntpupdated && !Wifi.ntpproceso && mqttdone && !mqttproceso && dhtdone && bmpdone && ldrdone && inadone){  
     mqtt_disconnect(stateM->mqtt_client); 
     Wifi.wifiOff();  
-    exactSleepTimeFirst = time_us_64(); 
-    exactOnTime = (time_us_64() - exactOnTimeFirst)/1000;                     
+    //exactSleepTimeFirst = time_us_64(); 
+    //exactOnTime = (time_us_64() - exactOnTimeFirst)/1000;                     
     //-SLEEPING--
     #if DEBUG
       execTime();      
@@ -427,8 +427,8 @@ void Sleep(MQTT_CLIENT_T* stateM){
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,SLEEPTIME);
       recover_from_sleep();
-      exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
-      exactOnTimeFirst = time_us_64(); 
+      //exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
+      //exactOnTimeFirst = time_us_64(); 
     #endif 
     //-SLEEP DONE--      
     Wifi.wifiConn(false,false);
@@ -487,8 +487,7 @@ void ina219Setup(){
   i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
 void LoopINA219() {
-  if(inadone==false){   
-    exactOnTime = time_us_64()/1000;  
+  if(inadone==false){ 
     exactSleepTime = time_us_64()/1000;
     float busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
     int numLoop = 3;
@@ -514,9 +513,8 @@ void LoopINA219() {
       power_mW *=-1;
     }
     power_W = power_mW / 1000;  
-
     exactOnTimeFirst = time_us_64()/1000;
-    double Inatime = (exactSleepTime - exactSleepTimeFirst) + (exactOnTimeFirst - exactOnTime);
+    double Inatime = (exactSleepTime - exactSleepTimeFirst) + (exactOnTimeFirst - exactSleepTime);
     if(Inatime > 0){
       total_mAH += current_mA * (Inatime / 3600000.0); 
       total_mWH += power_mW *  (Inatime / 3600000.0);
@@ -757,10 +755,10 @@ int main() {
   sleep_ms(10);    
   stdio_init_all(); 
   sleep_ms(10);
-/*   #if DEBUG 
+  #if DEBUG 
     while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
     sleep_ms(50);
-  #endif   */
+  #endif   
   TiempoWait = time_us_64();
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
