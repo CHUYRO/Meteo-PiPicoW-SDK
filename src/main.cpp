@@ -70,7 +70,7 @@ float temperature_c = 0, Tcomb = 0;
 dht_t dht;
 
 //- INA219 -------------------------
-float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, shuntvoltageSum = 0, busvoltageSum = 0, current_mASum = 0, total_mAHSum = 0, power_mWSum = 0, loadvoltageSum = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0, total_mW = 0, total_mWH = 0, total_mWM = 0;
+float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW = 0, loadvoltage = 0, current_A = 0, power_W = 0, total_mAM = 0, total_mA = 0, total_mW = 0, total_mWH = 0, total_mWM = 0;
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;  
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS); 
@@ -488,22 +488,24 @@ void ina219Setup(){
 }
 void LoopINA219() {
   if(inadone==false){   
-    busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
+    exactOnTime = time_us_64()/1000;  
+    exactSleepTime = time_us_64()/1000;
+    float busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
+    int numLoop = 3;
     i.wake();
-    for(int t = 0; t<30; t++){
+    for(int t = 0; t < numLoop; t++){
       busvoltageSum += i.voltage();
       shuntvoltageSum += i.shunt_voltage();
       current_mASum += i.current(); 
       power_mWSum += i.power();
       loadvoltageSum += i.supply_voltage();
-      sleep_ms(1);
     }    
     i.sleep(); 
-    busvoltage = busvoltageSum/30;
-    shuntvoltage = shuntvoltageSum/30;
-    current_mA = current_mASum/30; 
-    power_mW = power_mWSum/30;
-    loadvoltage = loadvoltageSum/30;
+    busvoltage = busvoltageSum/numLoop;
+    shuntvoltage = shuntvoltageSum/numLoop;
+    current_mA = current_mASum/numLoop; 
+    power_mW = power_mWSum/numLoop;
+    loadvoltage = loadvoltageSum/numLoop; 
     if (current_mA < 0){
       current_mA *=-1;
     } 
@@ -511,16 +513,18 @@ void LoopINA219() {
     if (power_mW < 0){
       power_mW *=-1;
     }
-    power_W = power_mW / 1000; 
+    power_W = power_mW / 1000;  
 
-    total_mAH += ((current_mA * (exactOnTime / 3600000.0)) + (4.0 * (exactSleepTime / 3600000.0))); //measured 4 mA during sleep
-    total_mWH += ((power_mW * (exactOnTime / 3600000.0)) + (18.0 * (exactSleepTime / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
-    execTime();
-    long int SegIna = Segundos;
-    if(SegIna > 0){total_mAM = total_mAH / (SegIna/3600.0); total_mWM = total_mWH / (SegIna/3600.0);}
-    
-    inadone=true;
-    #if DEBUGINA219
+    exactOnTimeFirst = time_us_64()/1000;
+    double Inatime = (exactSleepTime - exactSleepTimeFirst) + (exactOnTimeFirst - exactOnTime);
+    if(Inatime > 0){
+      total_mAH += current_mA * (Inatime / 3600000.0); 
+      total_mWH += power_mW *  (Inatime / 3600000.0);
+      double SegIna = Segundos;
+      if(SegIna > 0.0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
+    } 
+    #if DEBUGINA219   
+    if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
       printf("\n------ INA219 DEBUG ------\n");
       printf("-busvoltage: %.3f V\n", busvoltage);
       printf("-shuntvoltage: %.2f mV\n", shuntvoltage);
@@ -529,9 +533,13 @@ void LoopINA219() {
       printf("-power_mW: %.2f mW\n", power_mW);
       printf("-total_mAh: %.2f mAh/h: %.2f\n", total_mAH, total_mAM);
       printf("-total_mWh: %.2f mWh/h: %.2f\n", total_mWH, total_mWM);
-      printf("-Segundos: %02li onTime: %.4f offTime: %.4f\n",SegIna ,(current_mA * (exactOnTime / 3600000.0)) ,(4.0 * (exactSleepTime / 3600000.0)));
-      printf("---------- END ----------\n");
-    #endif  
+      printf("-Segundos: %02lli t_Btwn_Meas: %02lli t_Meas: %02lli\n",Segundos ,(exactSleepTime - exactSleepTimeFirst),(exactOnTimeFirst-exactOnTime));
+      printf("---------- END ----------\n");        
+      INA219sendTimer = make_timeout_time_us(1000000); //1000ms 
+    }
+    #endif
+    inadone=true;   
+    exactSleepTimeFirst = time_us_64()/1000;  
   }
 }
 //- BMP280 ------------------------------------
