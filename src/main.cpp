@@ -17,6 +17,7 @@
 #include <dht22.h>
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
+#include <telnetdLib.hpp>   
 
 #define DEBUG false // debug logic
 
@@ -24,17 +25,18 @@
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
+  #define DEBUGSERIALWAIT false
   #define DEBUGINA219 true
-  #define SLEEPTIME 20
+  #define DEBUGTELNET false
+  #define SLEEPTIME 30
   #include "tusb.h"
-  //- TELNETD -----------------------
-  #include <telnetdLib.hpp>
-  telnetdLib::telnetdLib telnetd = telnetdLib::telnetdLib();  
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGINA219 false
+  #define DEBUGSERIALWAIT false
+  #define DEBUGTELNET false
   #define SLEEPTIME 180
 #endif
 
@@ -47,6 +49,9 @@
 #endif
 
 //---------- GLOBAL ---------- 
+
+//- TELNET SERIAL ----
+telnetdLib::telnetdLib telnetd = telnetdLib::telnetdLib();
 
 //- LDR --------------
 float ldrVal = -1, ldrValRaw = 0;
@@ -74,6 +79,7 @@ float shuntvoltage = 0, busvoltage = 0, current_mA = 0, total_mAH = 0, power_mW 
 float SHUNT_OHMS = 0.1;
 float MAX_EXPECTED_AMPS = 3.2;  
 INA219 i(SHUNT_OHMS, MAX_EXPECTED_AMPS); 
+absolute_time_t INA219sendTimer = nil_time;
 
 //- VSYS ----------------
 float voltage = 0, adc = 0, tempC = 0;
@@ -96,7 +102,7 @@ wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 //- SLEEP ------------------------------
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
 bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, mqttproceso = false;
-uint64_t exactSleepTime = 0, exactSleepTimeFirst = 0, exactOnTimeFirst = 0;
+uint64_t exactSleepTime = 0, exactSleepTimeFirst = 0, exactOnTimeFirst = 0, exactOnTime = 0, exactOnTimeCalc = 0;
 
 //- MQTT ---------------
 const char *ChannelID = "1713237";
@@ -401,37 +407,35 @@ void recover_from_sleep(){
   clocks_init();
 
   //try to reinit usb - NOT working... after sleep usb is down.
+  //sleep_ms(10);
   //stdio_init_all();
 
   return;
 }
 void Sleep(MQTT_CLIENT_T* stateM){
   if(Wifi.InitTimeGet && Wifi.ntpupdated && !Wifi.ntpproceso && mqttdone && !mqttproceso && dhtdone && bmpdone && ldrdone && inadone){  
-    mqtt_disconnect(stateM->mqtt_client); 
-    Wifi.wifiOff();  
-    //exactSleepTimeFirst = time_us_64(); 
-    //exactOnTime = (time_us_64() - exactOnTimeFirst)/1000;                     
+    //mqtt_disconnect(stateM->mqtt_client);       
+    //execTime();      
+    //Wifi.NTPLoop(); 
+    //printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);
+    Wifi.wifiOff();                   
+    exactSleepTimeFirst = time_us_64();          
     //-SLEEPING--
     #if DEBUG
-      execTime();      
-      Wifi.NTPLoop(); 
-      printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);
-      sleep_ms(SLEEPTIME*1000);
-      execTime();
-      Wifi.NTPLoop();
-      exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
-      exactOnTimeFirst = time_us_64();
-      printf("\n----------------------------------------------------\n");
-      printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %lli ms STOT: %lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
+      sleep_ms(SLEEPTIME*1000);      
     #else
       sleep_run_from_xosc();                                
       rtc_sleep_custom(0,SLEEPTIME);
       recover_from_sleep();
-      //exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
-      //exactOnTimeFirst = time_us_64(); 
-    #endif 
+    #endif     
+    exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
+    exactOnTimeFirst = time_us_64();
+    //execTime();
+    //Wifi.NTPLoop();    
+    //printf("\n----------------------------------------------------\n");
+    //printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
     //-SLEEP DONE--      
-    Wifi.wifiConn(false,false);
+    Wifi.wifiConn(false,false);   
     mqttdone=false;
     mqttproceso=false;
     dhtdone=false;  
@@ -487,8 +491,7 @@ void ina219Setup(){
   i.configure(RANGE_16V, GAIN_8_320MV, ADC_8SAMP, ADC_8SAMP);
 }
 void LoopINA219() {
-  if(inadone==false){ 
-    exactSleepTime = time_us_64()/1000;
+  if(inadone==false){     
     float busvoltageSum=0,shuntvoltageSum=0,current_mASum=0,power_mWSum=0,loadvoltageSum=0;
     int numLoop = 3;
     i.wake();
@@ -512,14 +515,16 @@ void LoopINA219() {
     if (power_mW < 0){
       power_mW *=-1;
     }
-    power_W = power_mW / 1000;  
-    exactOnTimeFirst = time_us_64()/1000;
-    double Inatime = (exactSleepTime - exactSleepTimeFirst) + (exactOnTimeFirst - exactSleepTime);
-    if(Inatime > 0){
-      total_mAH += current_mA * (Inatime / 3600000.0); 
-      total_mWH += power_mW *  (Inatime / 3600000.0);
+    power_W = power_mW / 1000; 
+    exactOnTime = (time_us_64() - exactOnTimeFirst)/1000;
+    double Ont = exactOnTime;
+    double Oft = exactSleepTime;
+    if(Ont > 0 && Oft > 0){
+      total_mAH += ((current_mA * (Ont / 3600000.0)) + (4.0 * (Oft / 3600000.0))); //measured 4 mA during sleep
+      total_mWH += ((power_mW * (Ont / 3600000.0)) + (18.0 * (Oft / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
+      execTime();
       double SegIna = Segundos;
-      if(SegIna > 0.0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
+      if(SegIna > 0.0){total_mAM = (total_mAH / (SegIna/3600.0))/18;total_mWM = (total_mWH / (SegIna/3600.0))/18;}
     } 
     #if DEBUGINA219   
     if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
@@ -529,14 +534,14 @@ void LoopINA219() {
       printf("-loadvoltage: %.3f V\n", loadvoltage);
       printf("-current_mA: %.2f mA\n", current_mA);
       printf("-power_mW: %.2f mW\n", power_mW);
-      printf("-total_mAh: %.2f mAh/h: %.2f\n", total_mAH, total_mAM);
+      printf("-cON: %.4f cOFF: %.4f total_mAh: %.2f mAh/h: %.2f\n", (current_mA * (Ont / 3600000.0)),(4.0 * (Oft / 3600000.0)), total_mAH, total_mAM);
       printf("-total_mWh: %.2f mWh/h: %.2f\n", total_mWH, total_mWM);
-      printf("-Segundos: %02lli t_Btwn_Meas: %02lli t_Meas: %02lli\n",Segundos ,(exactSleepTime - exactSleepTimeFirst),(exactOnTimeFirst-exactOnTime));
+      printf("-Segundos: %02lli t_Btwn_Meas/OffTime: %02lli t_Meas/onTime: %.1f\n",Segundos ,exactSleepTime,Ont);
       printf("---------- END ----------\n");        
       INA219sendTimer = make_timeout_time_us(1000000); //1000ms 
     }
     #endif
-    inadone=true;   
+    inadone=true;  
     exactSleepTimeFirst = time_us_64()/1000;  
   }
 }
@@ -755,7 +760,7 @@ int main() {
   sleep_ms(10);    
   stdio_init_all(); 
   sleep_ms(10);
-  #if DEBUG 
+  #if DEBUGSERIALWAIT
     while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
     sleep_ms(50);
   #endif   
@@ -766,7 +771,7 @@ int main() {
   Wifi.wifiConn(false,true); 
   ina219Setup(); 
   bmp280setup();  
-  #if DEBUG
+  #if DEBUGTELNET
   telnetd.telnetdSetup();
   #endif 
   //- MQTT --------------
@@ -790,7 +795,7 @@ int main() {
       LoopINA219();      
       MedGen();                     
       MQTT(stateM);
-      TimeoutControl(stateM);
+      TimeoutControl(stateM);  
       Sleep(stateM);      
     }
     Reconnect_Loop();
