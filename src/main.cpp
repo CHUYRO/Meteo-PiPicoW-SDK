@@ -17,7 +17,7 @@
 #include <dht22.h>
 #include <bmp280.hpp>
 #include <wifiLib.hpp>
-#include <telnetdLib.hpp>   
+#include <telnetdLib.hpp>  
 
 #define DEBUG false // debug logic
 
@@ -26,10 +26,9 @@
   #define DEBUGDHT22 false
   #define DEBUGMQTT false
   #define DEBUGSERIALWAIT false
-  #define DEBUGINA219 true
+  #define DEBUGINA219 false
   #define DEBUGTELNET false
-  #define SLEEPTIME 30
-  #include "tusb.h"
+  #define SLEEPTIME 10  
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -37,7 +36,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 180
+  #define SLEEPTIME 10
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
@@ -119,32 +118,32 @@ typedef struct MQTT_CLIENT_T_ {
 //----------------------------------- FUNC. START -------------------------------
 //- INTERNAL TIME OF EXEC. --------------------------
 void __no_inline_not_in_flash_func(execTime)(){ 
-  USec = time_us_64() - (TiempoLoop+TiempoWait);
+  USec = time_us_64() - (TiempoLoop + TiempoWait);
   Millis = USec / 1000;
   Segundos = Millis / 1000;
   Minutos = Segundos / 60;
   Horas = Minutos / 60;
   Dias = Horas / 24;
 
-  MillisTot = Millis - Segundos*1000;
-  SegundosTot = Segundos - Minutos*60;
-  MinutosTot = Minutos - Horas*60;
-  HorasTot = Horas - Dias*24;
+  MillisTot = Millis - Segundos * 1000;
+  SegundosTot = Segundos - Minutos * 60;
+  MinutosTot = Minutos - Horas * 60;
+  HorasTot = Horas - Dias * 24;
   DiasTot = Dias;
 
-  if(MillisTot%1000 == 0 && MillisTot != MillisRaw){
+  if(MillisTot % 1000 == 0 && MillisTot != MillisRaw){
     MillisTot = 0;
     MillisRaw = MillisTot;        
   } 
-  if(SegundosTot%60 == 0 && SegundosTot != SegundosRaw){
+  if(SegundosTot % 60 == 0 && SegundosTot != SegundosRaw){
     SegundosTot = 0;
     SegundosRaw = SegundosTot;        
   }           
-  if(MinutosTot%60 == 0 && MinutosTot != MinutosRaw){
+  if(MinutosTot % 60 == 0 && MinutosTot != MinutosRaw){
     MinutosTot = 0;
     MinutosRaw = MinutosTot;
   }
-  if(HorasTot%24 == 0 && HorasTot != HorasRaw){ 
+  if(HorasTot % 24 == 0 && HorasTot != HorasRaw){ 
     HorasTot = 0;
     HorasRaw = HorasTot;
   } 
@@ -154,6 +153,7 @@ void measure_freqs() {
   uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
   uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
   uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
+  uint f_xosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_XOSC_CLKSRC);
   uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
   uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
   uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
@@ -170,6 +170,7 @@ void measure_freqs() {
   printf("\n--pll_sys  = %dkHz\n", f_pll_sys);
   printf("--pll_usb  = %dkHz\n", f_pll_usb);
   printf("--rosc     = %dkHz\n", f_rosc);
+  printf("--xosc     = %dkHz\n", f_xosc);
   printf("--clk_sys  = %dkHz\n", f_clk_sys);
   printf("--clk_peri = %dkHz\n", f_clk_peri);
   printf("--clk_usb  = %dkHz\n", f_clk_usb);
@@ -313,6 +314,7 @@ static void sleep_callback(void) {
   return;   
 }
 static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {  
+  Wifi.NTPLoop();
   uint secondTO = second_to_sleep_to + Wifi.SegundosRTC;
   uint minuteTO = minute_to_sleep_to + Wifi.MinutosRTC;
   uint horaTO = Wifi.HorasRTC;
@@ -321,66 +323,39 @@ static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {
   uint mesTO = Wifi.MesRTC;
   uint añoTO = Wifi.AñoRTC;
 
-  while(secondTO>=60 || minuteTO>=60){
-    if(secondTO>=60){
-      secondTO-=60;
-      minuteTO++;
+  minuteTO += secondTO / 60;
+  secondTO %= 60;
+
+  horaTO += minuteTO / 60;
+  minuteTO %= 60;
+
+  diaTO += horaTO / 24;
+  diaWTO = (diaWTO + horaTO / 24) % 7;
+  horaTO %= 24;
+
+  if (añoTO % 4 == 0) { // Leap year check
+    if ((mesTO == 1 || mesTO == 3 || mesTO == 5 || mesTO == 7 || mesTO == 8 || mesTO == 10 || mesTO == 12) && diaTO > 31) {
+      diaTO = 1;
+      mesTO++;
+    } else if ((mesTO == 4 || mesTO == 6 || mesTO == 9 || mesTO == 11) && diaTO > 30) {
+      diaTO = 1;
+      mesTO++;
+    } else if (mesTO == 2 && diaTO > 29) {
+      diaTO = 1;
+      mesTO++;
     }
-    if(minuteTO>=60){
-      minuteTO-=60;
-      horaTO++;
-      if(horaTO==24){
-        horaTO=0;
-        diaTO++;
-        diaWTO++;
-        if(diaWTO>6){
-          diaWTO=0;
-        }
-        if(añoTO%4==0){//Bisiesto Feb 29dias
-          if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
-            if(diaTO>31){
-              diaTO=1;
-              mesTO++;
-              //if(mes>12)añoTO++ do algo...
-            }
-          }
-          else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
-            if(diaTO>30){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-          else if(mesTO==2){
-            if(diaTO>29){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-        }
-        else{//NO bisiesto Feb 28dias
-          if(mesTO==1||mesTO==3||mesTO==5||mesTO==7||mesTO==8||mesTO==10||mesTO==12){
-            if(diaTO>31){
-              diaTO=1;
-              mesTO++;
-              //if(mesTO>12)
-            }
-          }
-          else if(mesTO==4||mesTO==6||mesTO==9||mesTO==11){
-            if(diaTO>30){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-          else if(mesTO==2){
-            if(diaTO>28){
-              diaTO=1;
-              mesTO++;
-            }
-          }
-        }
-      }
+  } else {
+    if ((mesTO == 1 || mesTO == 3 || mesTO == 5 || mesTO == 7 || mesTO == 8 || mesTO == 10 || mesTO == 12) && diaTO > 31) {
+      diaTO = 1;
+      mesTO++;
+    } else if ((mesTO == 4 || mesTO == 6 || mesTO == 9 || mesTO == 11) && diaTO > 30) {
+      diaTO = 1;
+      mesTO++;
+    } else if (mesTO == 2 && diaTO > 28) {
+      diaTO = 1;
+      mesTO++;
     }
-  }    
+  }   
 
   datetime_t t_alarm = {
     .year  = (int16_t)añoTO,
@@ -390,14 +365,15 @@ static void rtc_sleep_custom(uint minute_to_sleep_to, uint second_to_sleep_to) {
     .hour  = (int8_t)horaTO,
     .min   = (int8_t)minuteTO,
     .sec   = (int8_t)secondTO
-  };    
+  }; 
+
   sleep_goto_sleep_until(&t_alarm, &sleep_callback);
 }
 void recover_from_sleep(){
 
   //Re-enable ring Oscillator control
-  rosc_write(&rosc_hw->ctrl, ROSC_CTRL_ENABLE_BITS);
-
+  rosc_write(&rosc_hw->ctrl, ROSC_CTRL_ENABLE_BITS); 
+  
   //reset procs back to default
   scb_hw->scr = scb_orig;
   clocks_hw->sleep_en0 = clock0_orig;
@@ -408,34 +384,45 @@ void recover_from_sleep(){
 
   //try to reinit usb - NOT working... after sleep usb is down.
   //sleep_ms(10);
-  //stdio_init_all();
+/*   stdio_init_all();
+  stdio_usb_init();
+  tusb_init(); */   
 
   return;
 }
 void Sleep(MQTT_CLIENT_T* stateM){
   if(Wifi.InitTimeGet && Wifi.ntpupdated && !Wifi.ntpproceso && mqttdone && !mqttproceso && dhtdone && bmpdone && ldrdone && inadone){  
-    //mqtt_disconnect(stateM->mqtt_client);       
+    mqtt_disconnect(stateM->mqtt_client);       
     //execTime();      
     //Wifi.NTPLoop(); 
     //printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);
-    Wifi.wifiOff();                   
+    //measure_freqs();
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); 
+    #if !DEBUGTELNET
+    Wifi.wifiOff(); 
+    #endif                  
     exactSleepTimeFirst = time_us_64();          
     //-SLEEPING--
-    #if DEBUG
-      sleep_ms(SLEEPTIME*1000);      
-    #else
-      sleep_run_from_xosc();                                
+    #if DEBUG || DEBUGTELNET
+      sleep_ms(SLEEPTIME*1000);     
+    #elif !DEBUG && !DEBUGTELNET   
+      //sleep_run_from_xosc();   not awaking 
+      sleep_run_from_rosc();                             
       rtc_sleep_custom(0,SLEEPTIME);
-      recover_from_sleep();
+      recover_from_sleep();     
     #endif     
     exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
-    exactOnTimeFirst = time_us_64();
+    exactOnTimeFirst = time_us_64();    
     //execTime();
     //Wifi.NTPLoop();    
     //printf("\n----------------------------------------------------\n");
     //printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
-    //-SLEEP DONE--      
-    Wifi.wifiConn(false,false);   
+    //measure_freqs();
+    //-SLEEP DONE-- 
+    #if !DEBUGTELNET     
+    Wifi.wifiConn(false,false);
+    #endif
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);   
     mqttdone=false;
     mqttproceso=false;
     dhtdone=false;  
@@ -452,10 +439,10 @@ void LDRLoop() {
     adc_gpio_init(27);        
     adc_select_input(1);
     ldrValRaw = 0;
-    for (int i = 0; i < 10; i++){
+    for (int i = 0; i < 3; i++){
       ldrValRaw += 140 - adc_read();         
     }
-    ldrVal = ldrValRaw / 10;
+    ldrVal = ldrValRaw / 3;
     if (ldrVal < 5) {
       ldrVal = 0.01;
     }
@@ -520,12 +507,12 @@ void LoopINA219() {
     double Ont = exactOnTime;
     double Oft = exactSleepTime;
     if(Ont > 0 && Oft > 0){
-      total_mAH += ((current_mA * (Ont / 3600000.0)) + (4.0 * (Oft / 3600000.0))); //measured 4 mA during sleep
-      total_mWH += ((power_mW * (Ont / 3600000.0)) + (18.0 * (Oft / 3600000.0))); //assume 18 mW during sleep, 4mA x 4.5v avg
+      total_mAH += ((current_mA * (Ont / 3600000.0)) + (3.0 * (Oft / 3600000.0))); //measured 3 mA during sleep
+      total_mWH += ((power_mW * (Ont / 3600000.0)) + ((3.0*loadvoltage) * (Oft / 3600000.0))); //assume 3mA x V 
       execTime();
       double SegIna = Segundos;
       if(SegIna > 0.0){total_mAM = (total_mAH / (SegIna/3600.0))/18;total_mWM = (total_mWH / (SegIna/3600.0))/18;}
-    } 
+    } //Divided by 18.
     #if DEBUGINA219   
     if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
       printf("\n------ INA219 DEBUG ------\n");
@@ -761,9 +748,12 @@ int main() {
   stdio_init_all(); 
   sleep_ms(10);
   #if DEBUGSERIALWAIT
-    while(!tud_cdc_connected()){sleep_ms(1);}       //Wait til console ready
+    while(!stdio_usb_connected()){sleep_ms(1);}       //Wait til active stdio CDC connection ready
     sleep_ms(50);
-  #endif   
+    if(stdio_usb_connected()){ 
+      printf("\n--------- Active stdio CDC connection detected ---------\n");
+    }
+  #endif 
   TiempoWait = time_us_64();
   //- SETUP START ------------
   printf("\n------------ SETUP -------------\n");
