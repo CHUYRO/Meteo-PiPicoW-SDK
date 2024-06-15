@@ -160,12 +160,6 @@ void measure_freqs() {
   uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
   uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
 
-  //-SLEEP----------------    
-  //save clock values for awake
-  scb_orig = scb_hw->scr;
-  clock0_orig = clocks_hw->sleep_en0;
-  clock1_orig = clocks_hw->sleep_en1;
-
   printf("\n-FREQS.");
   printf("\n--pll_sys  = %dkHz\n", f_pll_sys);
   printf("--pll_usb  = %dkHz\n", f_pll_usb);
@@ -772,6 +766,11 @@ int main() {
   if(stateM->mqtt_client == NULL){printf("-Failed to create new mqtt client\n");}else{printf("-MQTT SETUP\n");}
   //- ONBOARD LED OFF -----------
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+  //-SLEEP----------------    
+  //save clock values for awake
+  scb_orig = scb_hw->scr;
+  clock0_orig = clocks_hw->sleep_en0;
+  clock1_orig = clocks_hw->sleep_en1;
   //- SETUPTIME ---------
   TiempoLoop = time_us_64()-TiempoWait;
   printf("\n-SETUP OK! -T.Wait: %ims -T.Setup: %ims -T.Total: %ims\n",TiempoWait/1000,TiempoLoop/1000,(TiempoWait+TiempoLoop)/1000);    
