@@ -36,7 +36,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 10
+  #define SLEEPTIME 180
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
@@ -422,7 +422,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
     #if !DEBUGTELNET     
     Wifi.wifiConn(false,false);
     #endif
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);   
+    //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);   
     mqttdone=false;
     mqttproceso=false;
     dhtdone=false;  
