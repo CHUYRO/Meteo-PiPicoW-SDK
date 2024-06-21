@@ -36,7 +36,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 180
+  #define SLEEPTIME 10
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
@@ -712,8 +712,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 }
 //- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
-  printf("\n------- LOOP WIFI ERROR -------\n");
-  Wifi.wifiConn(false,true); 
+  Wifi.getWiFiStatus(false); 
   mqttdone=false;
   mqttproceso=false;
   dhtdone=false;  
@@ -721,7 +720,7 @@ void Reconnect_Loop(){
   ldrdone=false;   
   inadone=false;     
   serialdone=false;   
-  sleep_ms(1000);
+  sleep_ms(5000);
 }
 //-------------- END FUNC. --------------------
 
