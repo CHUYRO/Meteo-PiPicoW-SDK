@@ -36,7 +36,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 10
+  #define SLEEPTIME 180
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
@@ -413,8 +413,9 @@ void Sleep(MQTT_CLIENT_T* stateM){
     //printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
     //measure_freqs();
     //-SLEEP DONE-- 
-    #if !DEBUGTELNET     
-    Wifi.wifiConn(false,false);
+    #if !DEBUGTELNET  
+    Wifi.getWiFiStatus(false, false, false);   
+    //Wifi.wifiConn(false,false);
     #endif
     //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);   
     mqttdone=false;
@@ -712,7 +713,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
 }
 //- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
-  Wifi.getWiFiStatus(false); 
+  Wifi.getWiFiStatus(false,true,false); 
   mqttdone=false;
   mqttproceso=false;
   dhtdone=false;  
