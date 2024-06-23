@@ -19,7 +19,7 @@
 #include <wifiLib.hpp>
 #include <telnetdLib.hpp>  
 
-#define DEBUG false // debug logic
+#define DEBUG true // debug logic
 
 #if DEBUG
   #define DEBUGBMP280 false
@@ -720,8 +720,7 @@ void Reconnect_Loop(){
   bmpdone=false;
   ldrdone=false;   
   inadone=false;     
-  serialdone=false;   
-  sleep_ms(5000);
+  serialdone=false; 
 }
 //-------------- END FUNC. --------------------
 
