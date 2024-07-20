@@ -19,7 +19,11 @@
 #include <wifiLib.hpp>
 #include <telnetdLib.hpp>  
 
-#define DEBUG true // debug logic
+#include <hardware/xosc.h>
+#include "hardware/pll.h"
+#include "tusb.h"
+
+#define DEBUG false // debug logic
 
 #if DEBUG
   #define DEBUGBMP280 false
@@ -28,7 +32,7 @@
   #define DEBUGSERIALWAIT false
   #define DEBUGINA219 false
   #define DEBUGTELNET false
-  #define SLEEPTIME 10  
+  #define SLEEPTIME 20  
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -36,7 +40,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 180
+  #define SLEEPTIME 20
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
@@ -94,6 +98,7 @@ uint64_t USec = 0, USecRaw = 0, Millis = 0, MillisRaw = 0, MillisTot = 0, Minuto
 unsigned int TiempoWait = 0, TiempoLoop = 0;
 long int ErrorMQTT = 0, Timeout = 0;
 absolute_time_t timeoutControl_timer = nil_time;
+absolute_time_t ExecT = nil_time;
 
 //- WIFI -----------------
 wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
@@ -102,6 +107,7 @@ wifiLib::wifiLib Wifi = wifiLib::wifiLib(40);
 unsigned int scb_orig = 0, clock0_orig = 0, clock1_orig = 0;
 bool mqttdone = false, dhtdone = false, ldrdone = false, bmpdone = false, inadone = false, serialdone = false, mqttproceso = false;
 uint64_t exactSleepTime = 0, exactSleepTimeFirst = 0, exactOnTimeFirst = 0, exactOnTime = 0, exactOnTimeCalc = 0;
+int32_t difference_in_seconds=0;
 
 //- MQTT ---------------
 const char *ChannelID = "1713237";
@@ -116,37 +122,178 @@ typedef struct MQTT_CLIENT_T_ {
 } MQTT_CLIENT_T;
 
 //----------------------------------- FUNC. START -------------------------------
+#define RTC_CLOCK_FREQ_HZ       (USB_CLK_KHZ * KHZ / 1024)
+
+// Copy of clocks_init() from pico-sdk, with USB
+// PLL and clock init made optional (for light sleep wakeup).
+void clocks_init_optional_usb(bool init_usb) {
+    // Start tick in watchdog, the argument is in 'cycles per microsecond' i.e. MHz
+    watchdog_start_tick(XOSC_KHZ / KHZ);
+
+    // Modification: removed FPGA check here
+
+    // Disable resus that may be enabled from previous software
+    clocks_hw->resus.ctrl = 0;
+
+    // Enable the xosc
+    xosc_init();
+    
+    // Before we touch PLLs, switch sys and ref cleanly away from their aux sources.
+    hw_clear_bits(&clocks_hw->clk[clk_sys].ctrl, CLOCKS_CLK_SYS_CTRL_SRC_BITS);
+    while (clocks_hw->clk[clk_sys].selected != 0x1) {
+      tight_loop_contents();
+    }
+    hw_clear_bits(&clocks_hw->clk[clk_ref].ctrl, CLOCKS_CLK_REF_CTRL_SRC_BITS);
+    while (clocks_hw->clk[clk_ref].selected != 0x1) {
+      tight_loop_contents();
+    }
+
+    /// \tag::pll_init[]
+    pll_init(pll_sys, PLL_COMMON_REFDIV, PLL_SYS_VCO_FREQ_KHZ * KHZ, PLL_SYS_POSTDIV1, PLL_SYS_POSTDIV2);
+    if (init_usb) {
+      pll_init(pll_usb, PLL_COMMON_REFDIV, PLL_USB_VCO_FREQ_KHZ * KHZ, PLL_USB_POSTDIV1, PLL_USB_POSTDIV2);
+    }
+    /// \end::pll_init[]
+
+    // Configure clocks
+    // CLK_REF = XOSC (usually) 12MHz / 1 = 12MHz
+    clock_configure(clk_ref,
+        CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC,
+        0,             // No aux mux
+        XOSC_KHZ * KHZ,
+        XOSC_KHZ * KHZ);
+
+    /// \tag::configure_clk_sys[]
+    // CLK SYS = PLL SYS (usually) 125MHz / 1 = 125MHz
+    clock_configure(clk_sys,
+        CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
+        CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+        SYS_CLK_KHZ * KHZ,
+        SYS_CLK_KHZ * KHZ);
+    /// \end::configure_clk_sys[]
+
+    if (init_usb) {
+      // CLK USB = PLL USB 48MHz / 1 = 48MHz
+      clock_configure(clk_usb,
+          0, // No GLMUX
+          CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+          USB_CLK_KHZ * KHZ,
+          USB_CLK_KHZ * KHZ);
+    }
+
+    // CLK ADC = PLL USB 48MHZ / 1 = 48MHz
+    clock_configure(clk_adc,
+        0,             // No GLMUX
+        CLOCKS_CLK_ADC_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+        USB_CLK_KHZ * KHZ,
+        USB_CLK_KHZ * KHZ);
+
+    // CLK RTC = PLL USB 48MHz / 1024 = 46875Hz
+    clock_configure(clk_rtc,
+        0,             // No GLMUX
+        CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+        USB_CLK_KHZ * KHZ,
+        RTC_CLOCK_FREQ_HZ);
+
+    // CLK PERI = clk_sys. Used as reference clock for Peripherals. No dividers so just select and enable
+    // Normally choose clk_sys or clk_usb
+    clock_configure(clk_peri,
+        0,
+        CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+        SYS_CLK_KHZ * KHZ,
+        SYS_CLK_KHZ * KHZ);        
+}
+
 //- INTERNAL TIME OF EXEC. --------------------------
-void __no_inline_not_in_flash_func(execTime)(){ 
-  USec = time_us_64() - (TiempoLoop + TiempoWait);
-  Millis = USec / 1000;
-  Segundos = Millis / 1000;
-  Minutos = Segundos / 60;
-  Horas = Minutos / 60;
-  Dias = Horas / 24;
-
-  MillisTot = Millis - Segundos * 1000;
-  SegundosTot = Segundos - Minutos * 60;
-  MinutosTot = Minutos - Horas * 60;
-  HorasTot = Horas - Dias * 24;
-  DiasTot = Dias;
-
-  if(MillisTot % 1000 == 0 && MillisTot != MillisRaw){
-    MillisTot = 0;
-    MillisRaw = MillisTot;        
-  } 
-  if(SegundosTot % 60 == 0 && SegundosTot != SegundosRaw){
-    SegundosTot = 0;
-    SegundosRaw = SegundosTot;        
-  }           
-  if(MinutosTot % 60 == 0 && MinutosTot != MinutosRaw){
-    MinutosTot = 0;
-    MinutosRaw = MinutosTot;
+// Function to calculate seconds since Unix epoch
+uint64_t datetime_to_seconds(const datetime_t& dt) {
+  uint64_t seconds = 0;
+  int year = dt.year;
+  
+  // Helper function to check if a year is a leap year
+  auto is_leap_year = [](int year) -> bool {
+    return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+  };
+  
+  // Helper function to get the number of days in a month
+  auto days_in_month = [is_leap_year](int year, int month) -> int {
+    static const int days_in_months[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    if (month == 2 && is_leap_year(year)) {
+      return 29;
+    }
+    return days_in_months[month - 1];
+  };
+  
+  // Add seconds for full years
+  for (int y = 1970; y < year; ++y) {
+    seconds += (is_leap_year(y) ? 366 : 365) * 24 * 3600;
   }
-  if(HorasTot % 24 == 0 && HorasTot != HorasRaw){ 
-    HorasTot = 0;
-    HorasRaw = HorasTot;
-  } 
+  
+  // Add seconds for the months of the current year
+  for (int m = 1; m < dt.month; ++m) {
+    seconds += days_in_month(year, m) * 24 * 3600;
+  }
+  
+  // Add seconds for the days of the current month
+  seconds += (dt.day - 1) * 24 * 3600;
+  
+  // Add seconds for the hours, minutes, and seconds of the current day
+  seconds += dt.hour * 3600;
+  seconds += dt.min * 60;
+  seconds += dt.sec;
+  
+  return seconds;
+}
+
+// Function to calculate the difference in seconds between two datetime_t structures
+uint64_t calculate_time_difference(const datetime_t& dt1, const datetime_t& dt2) {
+  // Convert both datetime_t structures to seconds since epoch
+  uint64_t seconds1 = datetime_to_seconds(dt1);
+  uint64_t seconds2 = datetime_to_seconds(dt2);
+  
+  // Calculate the absolute difference in seconds
+  return (seconds2 > seconds1) ? (seconds2 - seconds1) : (seconds1 - seconds2);
+}
+
+void execTime(){ 
+  if (absolute_time_diff_us(get_absolute_time(), ExecT) < 0) {
+    USec = time_us_64() - (TiempoLoop + TiempoWait);
+    Millis = USec / 1000;
+    if(Wifi.InitTimeGet && Wifi.ntpupdated){
+      datetime_t now_time;
+      rtc_get_datetime(&now_time);
+      Segundos = calculate_time_difference(Wifi.First,now_time);  
+    }else if(!Wifi.InitTimeGet){
+      Segundos = Millis / 1000;
+    }  
+    Minutos = Segundos / 60;
+    Horas = Minutos / 60;
+    Dias = Horas / 24;
+
+    MillisTot = Millis - Segundos * 1000;
+    SegundosTot = Segundos - Minutos * 60;
+    MinutosTot = Minutos - Horas * 60;
+    HorasTot = Horas - Dias * 24;
+    DiasTot = Dias;
+
+    if(MillisTot % 1000 == 0 && MillisTot != MillisRaw){
+      MillisTot = 0;
+      MillisRaw = MillisTot;        
+    } 
+    if(SegundosTot % 60 == 0 && SegundosTot != SegundosRaw){
+      SegundosTot = 0;
+      SegundosRaw = SegundosTot;        
+    }           
+    if(MinutosTot % 60 == 0 && MinutosTot != MinutosRaw){
+      MinutosTot = 0;
+      MinutosRaw = MinutosTot;
+    }
+    if(HorasTot % 24 == 0 && HorasTot != HorasRaw){ 
+      HorasTot = 0;
+      HorasRaw = HorasTot;
+    } 
+    ExecT = make_timeout_time_us(50000); //50ms 
+  }
 }
 //- Measure freqs. --------------------------------------
 void measure_freqs() {
@@ -184,7 +331,7 @@ static MQTT_CLIENT_T* mqtt_client_init(void) {
 }
 void dns_found(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
   MQTT_CLIENT_T *stateM = (MQTT_CLIENT_T*)callback_arg;
-  printf("-DNS query finished with resolved addr of %s.\n", ip4addr_ntoa(ipaddr));
+  printf("-MQTT DNS addr: %s.\n", ip4addr_ntoa(ipaddr));
   stateM->remote_addr = *ipaddr;
 }
 void run_dns_lookup(MQTT_CLIENT_T *stateM) {
@@ -214,9 +361,9 @@ void run_dns_lookup(MQTT_CLIENT_T *stateM) {
   Timeout = 0;
 }
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status) {
-  if (status != 0) {ErrorMQTT++;} 
+  if (status != 0) {ErrorMQTT++; sleep_ms(2500);} 
   #if DEBUGMQTT
-    printf("-mqtt_connection_cb: err %d\n", status);
+    printf("-mqtt_connection_cb status: %d\n", status);
   #endif  
   mqttproceso = false;
 }
@@ -254,7 +401,7 @@ err_t mqtt_test_publish(MQTT_CLIENT_T *stateM){
   err = mqtt_publish(stateM->mqtt_client, topicString, buffer, strlen(buffer), qos, retain, mqtt_pub_request_cb, stateM);
   cyw43_arch_lwip_end();
   #if DEBUGMQTT 
-    printf("-mqtt_test_publish: err %d\n", err);
+    printf("-mqtt_test_publish status: %d\n", err);
   #endif
 
   return err; 
@@ -280,7 +427,7 @@ err_t mqtt_test_connect(MQTT_CLIENT_T *stateM) {
   err = mqtt_client_connect(stateM->mqtt_client, &(stateM->remote_addr), MQTT_SERVER_PORT, mqtt_connection_cb, stateM, client_info);
   cyw43_arch_lwip_end();
   #if DEBUGMQTT 
-    printf("\n-mqtt_test_connect: err %d\n", err);
+    printf("\n-mqtt_test_connect status: %d\n", err);
   #endif
 
   return err;
@@ -292,7 +439,7 @@ void MQTT(MQTT_CLIENT_T* stateM){
       if(mqtt_test_publish(stateM) == ERR_OK){}else{printf("-Full ringbuffer or Publish error.\n");} 
       cyw43_arch_lwip_end();                
     }else{
-      int errReconnect = mqtt_test_connect(stateM);     
+      int errReconnect = mqtt_test_connect(stateM);
       if(errReconnect != ERR_OK && errReconnect != ERR_ISCONN){               
         printf("-Connection BAD!\n");
         ErrorMQTT++;
@@ -374,48 +521,45 @@ void recover_from_sleep(){
   clocks_hw->sleep_en1 = clock1_orig;
 
   //reset clocks
-  clocks_init();
-
-  //try to reinit usb - NOT working... after sleep usb is down.
-  //sleep_ms(10);
-/*   stdio_init_all();
-  stdio_usb_init();
-  tusb_init(); */   
+  bool disable_usb = !(tud_mounted()); 
+  clocks_init_optional_usb(disable_usb);   
 
   return;
 }
 void Sleep(MQTT_CLIENT_T* stateM){
   if(Wifi.InitTimeGet && Wifi.ntpupdated && !Wifi.ntpproceso && mqttdone && !mqttproceso && dhtdone && bmpdone && ldrdone && inadone){  
     mqtt_disconnect(stateM->mqtt_client);       
-    //execTime();      
-    //Wifi.NTPLoop(); 
-    //printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);
+    execTime();      
+    Wifi.NTPLoop();
+    datetime_t last_time;
+    rtc_get_datetime(&last_time);
+    printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);    
     //measure_freqs();
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); 
     #if !DEBUGTELNET
-    Wifi.wifiOff(); 
+      Wifi.wifiOff(); 
     #endif                  
-    exactSleepTimeFirst = time_us_64();          
+    exactSleepTimeFirst = Wifi.SegundosRTC;          
     //-SLEEPING--
     #if DEBUG || DEBUGTELNET
       sleep_ms(SLEEPTIME*1000);     
     #elif !DEBUG && !DEBUGTELNET   
-      //sleep_run_from_xosc();   not awaking 
-      sleep_run_from_rosc();                             
+      sleep_run_from_xosc();    //usb works after sleep!!
+      //sleep_run_from_rosc();  //usb DONT work after sleep.                           
       rtc_sleep_custom(0,SLEEPTIME);
       recover_from_sleep();     
-    #endif     
-    exactSleepTime = (time_us_64() - exactSleepTimeFirst)/1000;
-    exactOnTimeFirst = time_us_64();    
-    //execTime();
-    //Wifi.NTPLoop();    
-    //printf("\n----------------------------------------------------\n");
-    //printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
+    #endif   
+    execTime();
+    Wifi.NTPLoop();
+    datetime_t now_time;
+    rtc_get_datetime(&now_time);    
+    exactSleepTime = calculate_time_difference(last_time, now_time)*1000;
+    exactOnTimeFirst = time_us_64();           
+    printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
     //measure_freqs();
     //-SLEEP DONE-- 
-    #if !DEBUGTELNET  
-    Wifi.getWiFiStatus(false, false, false);   
-    //Wifi.wifiConn(false,false);
+    #if !DEBUGTELNET     
+      Wifi.getWiFiStatus(false, false, false);
     #endif
     //cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);   
     mqttdone=false;
@@ -503,10 +647,10 @@ void LoopINA219() {
     double Oft = exactSleepTime;
     if(Ont > 0 && Oft > 0){
       total_mAH += ((current_mA * (Ont / 3600000.0)) + (3.0 * (Oft / 3600000.0))); //measured 3 mA during sleep
-      total_mWH += ((power_mW * (Ont / 3600000.0)) + ((3.0*loadvoltage) * (Oft / 3600000.0))); //assume 3mA x V 
+      total_mWH += ((power_mW * (Ont / 3600000.0)) + ((3.0 * loadvoltage) * (Oft / 3600000.0))); //assume 3mA x V 
       execTime();
       double SegIna = Segundos;
-      if(SegIna > 0.0){total_mAM = (total_mAH / (SegIna/3600.0))/18;total_mWM = (total_mWH / (SegIna/3600.0))/18;}
+      if(SegIna > 0.0){total_mAM = (total_mAH / (SegIna/3600.0));total_mWM = (total_mWH / (SegIna/3600.0))/18;}
     } //Divided by 18.
     #if DEBUGINA219   
     if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
@@ -570,7 +714,7 @@ void bmp280setup() {
   sleep_ms(10);
 } 
 void bmp280loop() {
-  if(bmpdone==false && SegundosRawBMP + (uint64_t)1 < Segundos){
+  if(!bmpdone && SegundosRawBMP + (uint64_t)1 < Segundos){
     if(bmp280.readForChipID()!=0){
       bmpdone=true;
     }
@@ -668,18 +812,15 @@ static void serialInfo(){
   }
 }
 //- TIMEOUT CONTROL -------------------  
-void handleTimeout(const char *timeoutType) {
+void handleTimeout(const char *timeoutType, MQTT_CLIENT_T *stateM) {
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-  sleep_ms(300);
-  cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-  sleep_ms(300);
+  sleep_ms(1000);
   cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
   printf("\n--- TIMEOUT %s: +%lli SECONDS, sysSeg: %lli lastSendSeg: %lli ---", timeoutType, Segundos-StartingSEC, Segundos, StartingSEC);
   printf("\n-MQTT %s. NTP %s. Sensors %s: \n", mqttdone ? "OK" : "BAD", Wifi.ntpupdated ? "OK" : "BAD", dhtdone && bmpdone && ldrdone && inadone ? "OK" : "BAD");
   printf("-initDate:%d ntpproceso:%d ntpupdated:%d \n-mqttdone:%d mqttproceso:%d \n-dhtdone:%d \n-bmpdone:%d \n-ldrdone:%d \n-inadone:%d \n----------\n", Wifi.InitTimeGet,Wifi.ntpproceso,Wifi.ntpupdated, mqttdone, mqttproceso, dhtdone, bmpdone, ldrdone, inadone);
   if(strcmp(timeoutType,"MQTT")==0 || strcmp(timeoutType,"MQTT+SENSORS")==0 || strcmp(timeoutType,"MQTTproceso")==0 || strcmp(timeoutType,"NTPproceso")==0){
+    printf("\n-Reinitializing...\n");
     dhtdone=false;  
     bmpdone=false;
     ldrdone=false;  
@@ -689,31 +830,40 @@ void handleTimeout(const char *timeoutType) {
     mqttproceso=false; 
     Wifi.ntpproceso=false;
     Wifi.ntpupdated=false; 
+    mqtt_disconnect(stateM->mqtt_client); mqtt_client_free(stateM->mqtt_client);
+    sleep_ms(500);
+    run_dns_lookup(stateM);
+    stateM->mqtt_client = mqtt_client_new();
+    stateM->counter = 0;
+    if(stateM->mqtt_client == NULL){printf("-Failed to create new mqtt client\n");}else{printf("-MQTT Reinit\n");}    
   } 
 }
 void TimeoutControl(MQTT_CLIENT_T *stateM){
   if (absolute_time_diff_us(get_absolute_time(), timeoutControl_timer) < 0) {
-    if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){
-      handleTimeout("MQTT");
+    if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == false && mqttdone == false && dhtdone == true && bmpdone == true && ldrdone == true && inadone == true){
+      handleTimeout("MQTT",stateM);
       sleep_ms(3000);
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
-      handleTimeout("SENSORS"); 
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
+      handleTimeout("SENSORS",stateM); 
       sleep_ms(60000);  
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
-      handleTimeout("MQTT+SENSORS"); 
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && mqttproceso == true){
-      handleTimeout("MQTTproceso");   
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
+      handleTimeout("MQTT+SENSORS",stateM);      
+      sleep_ms(3000); 
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == true){
+      handleTimeout("MQTTproceso",stateM);   
       StartingSEC=Segundos;
-    }else if(StartingSEC+(uint64_t)(SLEEPTIME+50) <= Segundos && (Wifi.ntpproceso || !Wifi.ntpupdated)){
-      handleTimeout("NTPproceso");   
+      sleep_ms(3000);
+    }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && (Wifi.ntpproceso || !Wifi.ntpupdated)){
+      handleTimeout("NTPproceso",stateM);   
       StartingSEC=Segundos;
+      sleep_ms(3000);
     }
-    timeoutControl_timer = make_timeout_time_us(500000);   //500ms 
+    timeoutControl_timer = make_timeout_time_us(500000); //500ms 
   }   
 }
 //- WIFI RECONNECT LOOP ----------
 void Reconnect_Loop(){
-  Wifi.getWiFiStatus(false,true,false); 
+  Wifi.getWiFiStatus(false,true,true);
   mqttdone=false;
   mqttproceso=false;
   dhtdone=false;  
@@ -742,7 +892,7 @@ int main() {
   sleep_ms(10);
   #if DEBUGSERIALWAIT
     while(!stdio_usb_connected()){sleep_ms(1);}       //Wait til active stdio CDC connection ready
-    sleep_ms(50);
+    sleep_ms(30);
     if(stdio_usb_connected()){ 
       printf("\n--------- Active stdio CDC connection detected ---------\n");
     }
@@ -783,7 +933,7 @@ int main() {
       LoopINA219();      
       MedGen();                     
       MQTT(stateM);
-      TimeoutControl(stateM);  
+      TimeoutControl(stateM); 
       Sleep(stateM);      
     }
     Reconnect_Loop();

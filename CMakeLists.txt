@@ -54,6 +54,9 @@ target_compile_definitions(${NAME} PRIVATE
         MQTT_CLIENT_PSW=\"${MQTT_CLIENT_PSW}\"  
         PICOW_HOSTNAME=\"${PICOW_HOSTNAME}\"
         IP1=\"${IP1}\"
+        IP2=\"${IP2}\"
+        IP3=\"${IP3}\"
+        IP4=\"${IP4}\"
         #NDEBUG=0  # LWIP debug logic disabled
         )
 
