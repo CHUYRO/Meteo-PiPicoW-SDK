@@ -533,7 +533,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
     Wifi.NTPLoop();
     datetime_t last_time;
     rtc_get_datetime(&last_time);
-    printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactOnTime);    
+    printf("\n-Sleeping... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%02lli SON: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, HorasTot, MinutosTot, SegundosTot, exactOnTime);    
     //measure_freqs();
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); 
     #if !DEBUGTELNET
@@ -555,7 +555,7 @@ void Sleep(MQTT_CLIENT_T* stateM){
     rtc_get_datetime(&now_time);    
     exactSleepTime = calculate_time_difference(last_time, now_time)*1000;
     exactOnTimeFirst = time_us_64();           
-    printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%03lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, MinutosTot, SegundosTot, MillisTot, exactSleepTime, exactSleepTime+exactOnTime);
+    printf("\n-Awaking... RTC: %02i/%02i %02i:%02i:%02i T: %02lli:%02lli:%02lli SOFF: %02lli ms STOT: %02lli ms\n",Wifi.DiaRTC, Wifi.MesRTC, Wifi.HorasRTC, Wifi.MinutosRTC, Wifi.SegundosRTC, HorasTot, MinutosTot, SegundosTot, exactSleepTime, exactSleepTime+exactOnTime);
     //measure_freqs();
     //-SLEEP DONE-- 
     #if !DEBUGTELNET     
@@ -650,7 +650,7 @@ void LoopINA219() {
       total_mWH += ((power_mW * (Ont / 3600000.0)) + ((3.0 * loadvoltage) * (Oft / 3600000.0))); //assume 3mA x V 
       execTime();
       double SegIna = Segundos;
-      if(SegIna > 0.0){total_mAM = (total_mAH / (SegIna/3600.0));total_mWM = (total_mWH / (SegIna/3600.0))/18;}
+      if(SegIna > 0.0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
     } //Divided by 18.
     #if DEBUGINA219   
     if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
