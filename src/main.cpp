@@ -40,7 +40,7 @@
   #define DEBUGINA219 false
   #define DEBUGSERIALWAIT false
   #define DEBUGTELNET false
-  #define SLEEPTIME 20
+  #define SLEEPTIME 180
 #endif
 
 #define UNDERCLOCK false // over/underclock logic
