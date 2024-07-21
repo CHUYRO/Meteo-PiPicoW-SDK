@@ -28,11 +28,11 @@
 #if DEBUG
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
-  #define DEBUGMQTT false
+  #define DEBUGMQTT true
   #define DEBUGSERIALWAIT false
   #define DEBUGINA219 false
   #define DEBUGTELNET false
-  #define SLEEPTIME 20  
+  #define SLEEPTIME 10  
 #else
   #define DEBUGBMP280 false
   #define DEBUGDHT22 false
@@ -356,7 +356,7 @@ void run_dns_lookup(MQTT_CLIENT_T *stateM) {
     cyw43_arch_poll();
     #endif 
     Timeout++;  
-    busy_wait_ms(1);        
+    busy_wait_ms(1);       
   }
   Timeout = 0;
 }
@@ -521,8 +521,10 @@ void recover_from_sleep(){
   clocks_hw->sleep_en1 = clock1_orig;
 
   //reset clocks
-  bool disable_usb = !(tud_mounted()); 
-  clocks_init_optional_usb(disable_usb);   
+  /* bool disable_usb = !(tud_mounted()); 
+  printf("-disable_usb?:%d\n",disable_usb);
+  clocks_init_optional_usb(disable_usb);  */  
+  clocks_init();
 
   return;
 }
@@ -651,7 +653,7 @@ void LoopINA219() {
       execTime();
       double SegIna = Segundos;
       if(SegIna > 0.0){total_mAM = total_mAH / (SegIna/3600.0);total_mWM = total_mWH / (SegIna/3600.0);}
-    } //Divided by 18.
+    } 
     #if DEBUGINA219   
     if (absolute_time_diff_us(get_absolute_time(), INA219sendTimer) < 0) {  
       printf("\n------ INA219 DEBUG ------\n");
@@ -830,8 +832,10 @@ void handleTimeout(const char *timeoutType, MQTT_CLIENT_T *stateM) {
     mqttproceso=false; 
     Wifi.ntpproceso=false;
     Wifi.ntpupdated=false; 
+
     mqtt_disconnect(stateM->mqtt_client); mqtt_client_free(stateM->mqtt_client);
     sleep_ms(500);
+    MQTT_CLIENT_T *stateM = mqtt_client_init(); 
     run_dns_lookup(stateM);
     stateM->mqtt_client = mqtt_client_new();
     stateM->counter = 0;
@@ -845,7 +849,7 @@ void TimeoutControl(MQTT_CLIENT_T *stateM){
       sleep_ms(3000);
     }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == false && mqttdone == true && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
       handleTimeout("SENSORS",stateM); 
-      sleep_ms(60000);  
+      sleep_ms(20000);  
     }else if(StartingSEC+(uint64_t)(SLEEPTIME+15) <= Segundos && mqttproceso == false && mqttdone == false && (dhtdone != true || bmpdone != true || ldrdone != true || inadone != true)){
       handleTimeout("MQTT+SENSORS",stateM);      
       sleep_ms(3000); 
@@ -933,7 +937,7 @@ int main() {
       LoopINA219();      
       MedGen();                     
       MQTT(stateM);
-      TimeoutControl(stateM); 
+      //TimeoutControl(stateM); 
       Sleep(stateM);      
     }
     Reconnect_Loop();
